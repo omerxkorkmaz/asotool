@@ -162,6 +162,16 @@ katma, o sadece geçmişe dair ek bilgi, taslağın kalitesini etkilemez.
 görürsen (aynı kelimenin art arda tekrarı, virgülle birleştirilmiş iki farklı terim, 5+ kelimelik anlamsız
 diziler) bunları analiz dışı bırak, eksiklik olarak gösterme.
 
+KRİTİK KURAL — ÖNERİLEN METİNDE TAM İFADE ZORUNLULUĞU: "iyilestirilmis_baslik_onerisi" ve
+"iyilestirilmis_aciklama_ilk_paragraf_onerisi" alanlarına yazacağın metinde, "HİÇ YOK" durumundaki her
+kelime/öbek TAM OLARAK, KELİMESİ KELİMESİNE, BÖLÜNMEDEN geçmeli. Örneğin eksik kelime "iptv smart player"
+ise, metinde "akıllı iptv player" veya "smart player" gibi parçalı/yeniden ifade edilmiş hali YETERLİ DEĞİL —
+"iptv smart player" ifadesi üç kelime art arda, tam olarak bu sırayla geçmeli. Bunu doğal bir cümle içine
+yedirebilirsin (örn. "Bu profesyonel iptv smart player, ..." gibi) ama kelimeleri ayırma, eş anlamlısıyla
+değiştirme veya sırasını bozma. Bu kural olmazsa öneri pratikte işe yaramaz çünkü Play Store algoritması ve
+bizim kontrol sistemimiz tam ifade arıyor, parçalı geçişi saymıyor. HİÇ YOK durumundaki TÜM kelimeleri
+mutlaka önerilen başlık veya açıklamaya tam ifade halinde ekle, hiçbirini atlama.
+
 HESAPLANMIŞ ASO SKORU: ${asoSkoru}/100 (bu skor kod tarafında matematiksel olarak hesaplandı: ${strongInDraft.length} kelime güçlü, ${weakInDraft.length} kelime zayıf, ${missingInDraft.length} kelime hiç yok, toplam ${total} kelime üzerinden). Bu skoru olduğu gibi kullan, kendi skorunu üretme.
 
 GÖREV: SADECE aşağıdaki JSON formatında yanıt ver, başka metin ekleme. JSON alan isimleri Türkçe kalsın ama
@@ -192,6 +202,13 @@ bunlar doğrudan Play Store'a o dilde yayınlanacak.
       })
       aiAnalysis = JSON.parse(response.text)
       aiAnalysis.aso_skoru = asoSkoru // her ihtimale karşı kod-hesaplı skoru zorla, tutarlılık garantisi
+
+      // Doğrulama: Gemini'nin talimatı görmezden gelip eksik kelimeleri parçalı/bölük yazma
+      // ihtimaline karşı, önerilen metinde gerçekten tam ifade olarak geçiyor mu kontrol et.
+      // Geçmeyen varsa kullanıcıya şeffaf şekilde bildir (sessizce güvenme).
+      const suggestedText = `${aiAnalysis.iyilestirilmis_baslik_onerisi || ''} ${aiAnalysis.iyilestirilmis_aciklama_ilk_paragraf_onerisi || ''}`.toLowerCase()
+      const missingKeywordsList = missingInDraft.map(k => k.keyword)
+      aiAnalysis.onerideEksikKalanlar = missingKeywordsList.filter(kw => !suggestedText.includes(kw.toLowerCase()))
     } catch (err) {
       console.error('Gemini taslak analiz hatası:', err.message)
       aiAnalysis = null

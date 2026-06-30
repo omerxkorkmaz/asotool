@@ -467,6 +467,24 @@ export default function BulkScan() {
                       Kopyala
                     </button>
                   </div>
+
+                  {draftResult.aiAnalysis.onerideEksikKalanlar?.length > 0 && (
+                    <div className="card" style={{ borderLeft: '3px solid var(--warn)' }}>
+                      <div style={{ fontSize: 12, color: 'var(--warn)', marginBottom: 6, fontWeight: 500 }}>
+                        ⚠ ÖNERİDE TAM İFADE OLARAK GEÇMEYEN KELİMELER
+                      </div>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 8 }}>
+                        Yukarıdaki başlık/açıklama önerisinde şu kelimeler tam ifade olarak (kelimesi kelimesine)
+                        geçmiyor — sadece parçalı veya eş anlamlısıyla geçmiş olabilir. Bu kelimeleri kullanmak
+                        istiyorsan, önerilen metne elle, tam ifade halinde eklemen daha güvenli:
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {draftResult.aiAnalysis.onerideEksikKalanlar.map((kw, i) => (
+                          <span key={i} className="tag" style={{ fontSize: 11, color: 'var(--warn)' }}>{kw}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
