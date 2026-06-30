@@ -356,15 +356,18 @@ export default function BulkScan() {
                     ℹ {draftResult.malformedChecks.length} KELİME ANALİZ DIŞI BIRAKILDI
                   </div>
                   <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 8 }}>
-                    Bu kelimeler ya gerçek bir arama terimi gibi görünmüyor (anlamsız kombinasyon, marka adı, kişi ismi)
-                    ya da çok düşük hacimli (gerçek kullanıcılar aramıyor). İkisi de yanıltıcı "eksiklik" gibi
+                    Bu kelimeler ya yapısal olarak bozuk (çok uzun öbek, tekrar) ya düşük hacimli, ya da AI tarafından
+                    geçersiz tespit edildi (marka adı, kişi ismi, anlamsız kombinasyon). Yanıltıcı "eksiklik" gibi
                     görünmesin diye analize dahil edilmedi:
                   </p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <div className="stack">
                     {draftResult.malformedChecks.map((k, i) => (
-                      <span key={i} className="tag" style={{ fontSize: 11 }} title={k.previousDurum}>
-                        {k.keyword} {k.previousDurum === 'Düşük Hacim' && '(düşük hacim)'}
-                      </span>
+                      <div key={i} style={{ fontSize: 12, color: 'var(--text)', padding: '4px 0' }}>
+                        <span style={{ fontFamily: 'var(--mono)' }}>{k.keyword}</span>
+                        {k.filterReason && (
+                          <span style={{ color: 'var(--muted)', marginLeft: 8 }}>— {k.filterReason}</span>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

@@ -76,6 +76,7 @@ Gemini ücretsiz katmanı günde ~1.500 istek, dakikada ~15 istek veriyor — bu
 - Aynı şekilde **Keyword Genişletme** (autocomplete + rakip kelime analizi) tek bir kök kelime için birkaç saniye sürer, bu sorunsuz çalışır.
 - **Sıralama Trendi** cron job'u Vercel Hobby planda günde sadece 1 kez çalışabilir (Vercel'in kısıtı). `vercel.json`'daki `0 6 * * *` ifadesi her gün UTC 06:00'da çalışacak şekilde ayarlı, bu Hobby planda desteklenir.
 - **Yorum Madencisi** ve **Başlık Önerisi**'ndeki AI özellikleri Gemini API key olmadan da çalışır, sadece anahtar kelime eşleştirmesine düşer (daha az isabetli ama yine de kullanışlı).
+- **Taslak kontrolü kategori ve dil bağımsızdır.** "Anlamsız kelime" filtreleme iki katmanlı: (1) yapısal kontroller (kod, dil/kategori bilmeden çalışır — 5+ kelimelik öbekler, kelime tekrarı, düşük hacim), (2) semantik kontroller (Gemini, hangi kelimelerin marka adı / kişi ismi / anlamsız kombinasyon / o dilde gerçek arama terimi olmadığını belirler). Yeni bir uygulama kategorisi (oyun, fitness, fotoğraf vb.) eklerken kod değişikliğine gerek yok — Gemini her kategoride çalışır. Gemini key yoksa sadece yapısal katman aktiftir, geçersiz kelimeler tabloda gösterilir ama nedenleri detaylandırılmaz.
 - Veri localStorage'da tutulur (package name, rakip listesi, keyword geçmişi). Takip edilen kelimeler ve sıralama geçmişi ise KV kurulduysa Redis'te tutulur.
 - Rate limit: Kişisel kullanım için sorun olmaz. Çok fazla istek atarsan Google geçici IP block uygulayabilir.
 
