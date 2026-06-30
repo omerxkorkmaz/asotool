@@ -21,7 +21,7 @@ function checkKeywordInDraft(keyword, title, description) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { draftTitle, draftDescription, scanResults } = req.body
+  const { draftTitle, draftDescription, scanResults, language = 'Türkçe' } = req.body
   if (!draftTitle && !draftDescription) {
     return res.status(400).json({ error: 'draftTitle veya draftDescription zorunlu' })
   }
@@ -86,7 +86,7 @@ export default async function handler(req, res) {
         return `- "${k.keyword}" → TASLAKTAKİ DURUM: ${taslakDurum} (bağlam: yayındaki eski sürümde bu kelime "${k.previousDurum}" durumundaydı, bu sadece geçmiş bilgi, taslağı bundan bağımsız değerlendir)`
       }).join('\n')
 
-      const prompt = `Sen bir Google Play ASO (App Store Optimization) uzmanısın. Bir geliştirici henüz YAYINLAMADIĞI bir başlık ve açıklama taslağı hazırladı. Bu taslağı değerlendir.
+      const prompt = `Sen bir Google Play ASO (App Store Optimization) uzmanısın. Bir geliştirici henüz YAYINLAMADIĞI bir başlık ve açıklama taslağı hazırladı. Bu taslak ${language} dilinde ve ${language} konuşulan pazar(lar) için hazırlanmıştır. Tüm önerilerini ve değerlendirmeni ${language} dilinde, o dilin doğal/native konuşan bir kullanıcısının gerçekten arayacağı terimlere göre yap — başka bir dilden kelime kelime çeviri yapma, o dilin kendi ASO kalıplarını kullan.
 
 TASLAK BAŞLIK:
 ${draftTitle || '(girilmedi)'}
@@ -108,7 +108,11 @@ diziler) bunları analiz dışı bırak, eksiklik olarak gösterme.
 
 HESAPLANMIŞ ASO SKORU: ${asoSkoru}/100 (bu skor kod tarafında matematiksel olarak hesaplandı: ${strongInDraft.length} kelime güçlü, ${weakInDraft.length} kelime zayıf, ${missingInDraft.length} kelime hiç yok, toplam ${total} kelime üzerinden). Bu skoru olduğu gibi kullan, kendi skorunu üretme.
 
-GÖREV: SADECE aşağıdaki JSON formatında yanıt ver, başka metin ekleme.
+GÖREV: SADECE aşağıdaki JSON formatında yanıt ver, başka metin ekleme. JSON alan isimleri Türkçe kalsın ama
+İÇERİKLERİ (genel_degerlendirme, iyi_yapilanlar, kritik_eksikler, başlık/açıklama önerileri) ${language} dilinde yaz.
+Sadece "iyi_yapilanlar" ve "kritik_eksikler" maddelerinin AÇIKLAMA CÜMLELERİ Türkçe kalabilir (sen Türkçe konuşan
+geliştiriciye rapor veriyorsun), AMA önerilen başlık ve açıklama metinleri MUTLAKA ${language} dilinde olmalı çünkü
+bunlar doğrudan Play Store'a o dilde yayınlanacak.
 
 {
   "aso_skoru": ${asoSkoru},

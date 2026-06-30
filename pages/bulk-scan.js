@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Layout from '../components/Layout'
+import { APP_LANGUAGES } from '../lib/languages'
 
 const RENK_MAP = {
   yeşil:   { bg: 'var(--accent-dim)', text: 'var(--accent)', border: 'var(--accent)' },
@@ -11,6 +12,7 @@ const RENK_MAP = {
 
 export default function BulkScan() {
   const [appId, setAppId] = useState('')
+  const [activeLang, setActiveLang] = useState(APP_LANGUAGES[0]) // hangi dil/ülkede çalışıyoruz
   const [seed, setSeed] = useState('')
   const [expanding, setExpanding] = useState(false)
   const [expansion, setExpansion] = useState(null)
@@ -21,10 +23,26 @@ export default function BulkScan() {
   const [scanResult, setScanResult] = useState(null)
   const [openRow, setOpenRow] = useState(null)
 
-  const [draftTitle, setDraftTitle] = useState('')
-  const [draftDescription, setDraftDescription] = useState('')
+  // Her dil için ayrı taslak — örn. drafts.tr.title, drafts.en.title gibi
+  const [drafts, setDrafts] = useState(() => {
+    const initial = {}
+    APP_LANGUAGES.forEach(l => { initial[l.gl] = { title: '', description: '' } })
+    return initial
+  })
   const [checkingDraft, setCheckingDraft] = useState(false)
-  const [draftResult, setDraftResult] = useState(null)
+  // Her dil için ayrı sonuç da tutulur, sekme değiştirince eski sonuç kaybolmasın
+  const [draftResults, setDraftResults] = useState({})
+
+  const draftTitle = drafts[activeLang.gl]?.title || ''
+  const draftDescription = drafts[activeLang.gl]?.description || ''
+  const draftResult = draftResults[activeLang.gl] || null
+
+  function setDraftTitle(val) {
+    setDrafts(d => ({ ...d, [activeLang.gl]: { ...d[activeLang.gl], title: val } }))
+  }
+  function setDraftDescription(val) {
+    setDrafts(d => ({ ...d, [activeLang.gl]: { ...d[activeLang.gl], description: val } }))
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem('myAppId') || ''
@@ -47,7 +65,7 @@ export default function BulkScan() {
       const r = await fetch('/api/expand-keyword', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seed: primarySeed })
+        body: JSON.stringify({ seed: primarySeed, country: activeLang.gl, lang: activeLang.hl })
       })
       const d = await r.json()
       if (d.error) { alert(d.error); return }
@@ -74,12 +92,12 @@ export default function BulkScan() {
     if (selectedKeywords.length === 0) return
     setScanning(true)
     setScanResult(null)
-    setDraftResult(null)
+    setDraftResults({})
     try {
       const r = await fetch('/api/bulk-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keywords: selectedKeywords.slice(0, 20), appId })
+        body: JSON.stringify({ keywords: selectedKeywords.slice(0, 20), appId, country: activeLang.gl, lang: activeLang.hl })
       })
       const d = await r.json()
       if (d.error) { alert(d.error); return }
@@ -91,7 +109,6 @@ export default function BulkScan() {
     if (!draftTitle.trim() && !draftDescription.trim()) return
     if (!scanResult?.results?.length) return
     setCheckingDraft(true)
-    setDraftResult(null)
     try {
       const r = await fetch('/api/check-draft', {
         method: 'POST',
@@ -100,20 +117,40 @@ export default function BulkScan() {
           draftTitle: draftTitle.trim(),
           draftDescription: draftDescription.trim(),
           scanResults: scanResult.results,
+          language: activeLang.label,
         })
       })
       const d = await r.json()
       if (d.error) { alert(d.error); return }
-      setDraftResult(d)
+      setDraftResults(prev => ({ ...prev, [activeLang.gl]: d }))
     } finally { setCheckingDraft(false) }
   }
 
   return (
     <Layout title="Toplu Tarama & Aksiyon" badge="Keyword Genişletme + Strateji">
 
+      {/* Dil/Ülke Seçici — tüm sayfa bu dile göre çalışır */}
+      <div className="card" style={{ marginBottom: 20, borderLeft: '3px solid var(--blue)' }}>
+        <div className="card-title">Hangi Pazar İçin Çalışıyorsun?</div>
+        <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 12 }}>
+          Her dilde kullanıcılar farklı kelimelerle arama yapar — "iptv player" İngilizce'de doğal bir terim olsa da
+          Almanca veya İspanyolca konuşan kullanıcı başka kelimeler kullanır. Aşağıdan dili seç, kök kelimeni o dilde
+          gir (örn. Almanca için "iptv player" yerine kendi tahminini veya autocomplete önerisini kullan), tarama ve
+          taslak kontrolü o pazara göre çalışsın. Her dilin taslağı ayrı ayrı saklanır, sekme değiştirince kaybolmaz.
+        </p>
+        <div className="tabs">
+          {APP_LANGUAGES.map(l => (
+            <div key={l.gl} className={`tab ${activeLang.gl === l.gl ? 'active' : ''}`}
+              onClick={() => { setActiveLang(l); setExpansion(null); setScanResult(null) }}>
+              {l.flag} {l.label}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Adım 1: Kök kelime gir, genişlet */}
       <div className="card" style={{ marginBottom: 20 }}>
-        <div className="card-title">1. Adım — Kök Kelime Gir</div>
+        <div className="card-title">1. Adım — {activeLang.flag} {activeLang.label} İçin Kök Kelime Gir</div>
         <div className="input-row">
           <input className="input" placeholder="örn: iptv (virgülle birden fazla kelime girebilirsin: iptv, iptv player)" value={seed}
             onChange={e => setSeed(e.target.value)}
@@ -257,16 +294,34 @@ export default function BulkScan() {
 
           {/* ============ 3. ADIM: TASLAĞINI KONTROL ET ============ */}
           <div className="card" style={{ borderLeft: '3px solid var(--accent)', marginTop: 8 }}>
-            <div className="card-title">3. Adım — Yayınlamadan Önce Taslağını Kontrol Et</div>
-            <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 16 }}>
-              Yukarıda taradığın {scanResult.total} kelimeye göre, henüz Play Store'a basmadığın bir başlık/açıklama
-              taslağını buraya yapıştır. Tekrar Play Store'u taramadan, sadece taslağın bu kelimeleri ne kadar iyi
-              kapsadığını kontrol ederiz — yanlış çıkarsa düzeltip tekrar deneyebilirsin, hiçbir şey yayınlamadan.
+            <div className="card-title">3. Adım — {activeLang.flag} {activeLang.label} Taslağını Yayınlamadan Önce Kontrol Et</div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
+              Yukarıda {activeLang.label} için taradığın {scanResult.total} kelimeye göre, henüz Play Store'a basmadığın
+              {activeLang.label} başlık/açıklama taslağını buraya yapıştır. Tekrar Play Store'u taramadan, sadece taslağın
+              bu kelimeleri ne kadar iyi kapsadığını kontrol ederiz.
             </p>
 
+            {/* Hangi dilin taslağında olduğumuzu hatırlat, diğer dillerin durumunu küçük göster */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+              {APP_LANGUAGES.map(l => {
+                const hasContent = drafts[l.gl]?.title || drafts[l.gl]?.description
+                const hasResult = !!draftResults[l.gl]
+                return (
+                  <div key={l.gl} onClick={() => setActiveLang(l)} style={{
+                    cursor: 'pointer', padding: '5px 10px', borderRadius: 6, fontSize: 11,
+                    border: `1px solid ${activeLang.gl === l.gl ? 'var(--accent)' : 'var(--border)'}`,
+                    background: activeLang.gl === l.gl ? 'var(--accent-dim)' : 'var(--bg)',
+                    color: activeLang.gl === l.gl ? 'var(--accent)' : 'var(--muted)',
+                  }}>
+                    {l.flag} {l.gl.toUpperCase()} {hasResult ? '✓' : hasContent ? '✎' : ''}
+                  </div>
+                )
+              })}
+            </div>
+
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>TASLAK BAŞLIK</div>
-              <input className="input" style={{ width: '100%' }} placeholder="Örn: Setbox IPTV Player – M3U & Xtream Codes..."
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>TASLAK BAŞLIK ({activeLang.label})</div>
+              <input className="input" style={{ width: '100%' }} placeholder={`${activeLang.label} başlık taslağını buraya yaz...`}
                 value={draftTitle} onChange={e => setDraftTitle(e.target.value)} />
               <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontFamily: 'var(--mono)' }}>
                 {draftTitle.length} karakter {draftTitle.length > 50 && <span style={{ color: 'var(--warn)' }}>(Play Store başlık limiti genelde 50)</span>}
@@ -274,9 +329,9 @@ export default function BulkScan() {
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>TASLAK AÇIKLAMA</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>TASLAK AÇIKLAMA ({activeLang.label})</div>
               <textarea className="input" style={{ width: '100%', minHeight: 160, fontFamily: 'inherit', resize: 'vertical' }}
-                placeholder="Tam açıklama metnini buraya yapıştır..."
+                placeholder={`${activeLang.label} tam açıklama metnini buraya yapıştır...`}
                 value={draftDescription} onChange={e => setDraftDescription(e.target.value)} />
               <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontFamily: 'var(--mono)' }}>
                 {draftDescription.length} karakter
@@ -285,7 +340,7 @@ export default function BulkScan() {
 
             <button className="btn btn-primary" style={{ width: '100%' }}
               onClick={checkDraft} disabled={checkingDraft || (!draftTitle.trim() && !draftDescription.trim())}>
-              {checkingDraft ? <span className="spinner" /> : 'Taslağı Kontrol Et'}
+              {checkingDraft ? <span className="spinner" /> : `${activeLang.flag} ${activeLang.label} Taslağını Kontrol Et`}
             </button>
           </div>
 
@@ -438,7 +493,7 @@ export default function BulkScan() {
                         <th>Başlıkta</th>
                         <th>Açıklamada</th>
                         <th>Genel Durum</th>
-                        <th>Önceki Tarama Durumu</th>
+                        <th>Eski Yayında Durumu *</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -453,7 +508,7 @@ export default function BulkScan() {
                           <td>
                             {k.inDescription
                               ? <span style={{ color: k.inFirstLines ? 'var(--accent)' : 'var(--warn)' }}>
-                                  ✓ {k.inFirstLines ? '(ilk satırlar)' : `(${k.occurrences}x geçiyor)`}
+                                  ✓ {k.occurrences}x geçiyor {k.inFirstLines && '(ilk satırlarda)'}
                                 </span>
                               : <span style={{ color: 'var(--muted)' }}>—</span>}
                           </td>
@@ -473,6 +528,11 @@ export default function BulkScan() {
                     </tbody>
                   </table>
                 </div>
+                <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 10, fontStyle: 'italic' }}>
+                  * Bu sütun, Toplu Tarama'yı çalıştırdığın andaki <strong>gerçek Play Store yayınının</strong> durumunu gösterir,
+                  taslağınla aynı şey değildir. Taslağında değişiklik yapıp yukarıdaki "Başlıkta/Açıklamada" sütunlarını
+                  iyileştirsen bile, bu sütun eski yayın bilgisini göstermeye devam eder — kafa karıştırmasın diye burada.
+                </p>
               </div>
             </div>
           )}

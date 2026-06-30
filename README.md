@@ -7,7 +7,7 @@
 - **Keyword Tracker** — Bir keyword'de kaçıncı sıradasın, tüm rakip listesi, takibe alabilirsin
 - **Sıralama Trendi** — Takip ettiğin kelimeler her gün otomatik taranır (Vercel Cron), zaman içindeki sıra değişimini grafikte gör
 - **Çoklu Ülke Tarama** — Aynı keyword'ü farklı ülkelerde (TR, US, DE, SA, BR vb.) aynı anda tara
-- **Toplu Tarama & Aksiyon** — Kök kelime gir (örn. "iptv"), otomatik ilgili kelimeleri bul (Google autocomplete + rakip kelime analizi), seçtiğin kelimeleri topluca tara, her biri için fırsat skoru + somut aksiyon önerisi al. Üstüne: henüz yayınlamadığın bir başlık/açıklama taslağını yapıştır, taranan kelimeleri ne kadar kapsadığını gör, Gemini ile ASO skoru + risk uyarısı (marka ihlali vb.) + düzeltilmiş metin önerisi al — hiçbir şeyi Play Store'a basmadan
+- **Toplu Tarama & Aksiyon** — TR/EN/DE/ES dillerinden birini seç, o pazar için kök kelime gir, otomatik ilgili kelimeleri bul (Google autocomplete + rakip kelime analizi), seçtiğin kelimeleri topluca tara, her biri için fırsat skoru + somut aksiyon önerisi al. Üstüne: o dilin başlık/açıklama taslağını yapıştır (her dil için ayrı taslak saklanır), taranan kelimeleri ne kadar kapsadığını gör, Gemini ile o dilde ASO skoru + risk uyarısı (marka ihlali vb.) + düzeltilmiş metin önerisi al — hiçbir şeyi Play Store'a basmadan
 - **Rakip Analizi** — Rakip uygulama detayları, puan dağılımı, açıklama
 - **Yorum Madencisi** — Tek tek okuma + kategorilere göre özet (hata/UX/reklam/fiyat/övgü), Gemini API key varsa AI destekli akıllı özet
 - **Başlık & Açıklama Önerisi** — Rakip kelime analizine ve (varsa) Gemini'ye dayalı somut başlık/özet önerileri, tek tıkla kopyala
