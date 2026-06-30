@@ -1,30 +1,57 @@
 {
   "functions": {
-    "pages/api/multi-country.js": {
-      "maxDuration": 60
-    },
-    "pages/api/bulk-scan.js": {
-      "maxDuration": 60
-    },
-    "pages/api/expand-keyword.js": {
+    "pages/api/apps.ts": {
       "maxDuration": 30
     },
-    "pages/api/cron-scan.js": {
+    "pages/api/apps/[packageName].ts": {
+      "maxDuration": 30
+    },
+    "pages/api/aso-audit.ts": {
       "maxDuration": 60
     },
-    "pages/api/categorize-reviews.js": {
-      "maxDuration": 30
-    },
-    "pages/api/title-suggest.js": {
-      "maxDuration": 30
-    },
-    "pages/api/metadata-optimizer.js": {
-      "maxDuration": 30
-    },
-    "pages/api/aso-audit.js": {
+    "pages/api/bulk-scan.ts": {
       "maxDuration": 60
     },
-    "pages/api/check-draft.js": {
+    "pages/api/bulk-scan-history.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/categorize-reviews.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/category.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/check-draft.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/cron-scan.ts": {
+      "maxDuration": 60
+    },
+    "pages/api/expand-keyword.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/history.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/keywords.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/metadata-optimizer.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/multi-country.ts": {
+      "maxDuration": 60
+    },
+    "pages/api/reviews.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/rival.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/title-suggest.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/tracked.ts": {
       "maxDuration": 30
     },
     "src/app/api/cron/daily-logger/route.ts": {
