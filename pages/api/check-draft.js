@@ -47,13 +47,23 @@ export default async function handler(req, res) {
   // arama terimi değildir. Bunları ayrı işaretliyoruz ki hem ekranda hem Gemini'ye gönderirken
   // yanıltıcı "kritik eksik" gibi görünmesinler.
   //
-  // Ayrıca: bilinen rakip IPTV uygulama markaları ve "marka + kişi ismi" örüntüsündeki
-  // kelimeler (örn. "iptv smarters pro", "iptv alexander sofronov") marka ihlali riski taşıdığı
-  // için baştan ayıklanır — bunlar ne ekranda "eksik kelime" olarak gösterilir ne Gemini'ye
-  // gönderilir, çünkü kullanıcıyı yanlışlıkla bu kelimeleri eklemeye yönlendirebilir.
+  // Ayrıca: bilinen rakip IPTV uygulama markaları marka ihlali riski taşıdığı için baştan
+  // ayıklanır. Kişi isimleri (örn. "iptv alexander sofronov") büyük/küçük harf örüntüsüyle
+  // yakalanamıyor çünkü kaynak veride kelimeler zaten küçük harfe çevrilmiş geliyor — bunun
+  // yerine previousFirsatSkoru/appearsIn gibi sinyaller kullanılır: gerçek kategori kelimeleri
+  // (player, stream, smart) genelde birden fazla rakipte tekrar eder, bir kişi adı ise
+  // genelde çok nadir/tesadüfi geçer ve fırsat skoru anormal yüksek (rakipsiz) çıkar.
   const KNOWN_COMPETITOR_BRANDS = [
     'smarters', 'ibo player', 'iboplayer', 'tivimate', 'gse smart', 'perfect player',
     'ss iptv', 'duplex play', 'xciptv',
+  ]
+
+  // Teknoloji/IPTV bağlamıyla alakalı, gerçek ASO kelimesi olabilecek kökler.
+  // Bir kelime öbeği bu köklerden hiçbirini içermiyorsa (yani sadece "iptv" + tanımadığımız
+  // 2 kelime ise) muhtemelen isim/anlamsız bir kombinasyondur.
+  const RELEVANT_ROOTS = [
+    'player', 'stream', 'smart', 'app', 'live', 'tv', 'm3u', 'xtream', 'pro', 'free',
+    'hd', '4k', 'box', 'channel', 'watch', 'view', 'play', 'cast', 'code', 'list',
   ]
 
   function looksMalformed(keyword) {
@@ -69,10 +79,13 @@ export default async function handler(req, res) {
     // Bilinen rakip marka adı içeriyor mu?
     if (KNOWN_COMPETITOR_BRANDS.some(brand => lowerFull.includes(brand))) return true
 
-    // "İsim Soyisim" örüntüsü (iki ardışık büyük-harfle-başlayan kelime, kişi adı olabilir)
-    // — orijinal (lowercase yapılmamış) kelimeyi kontrol ediyoruz
-    const titleCaseWords = keyword.trim().split(/\s+/).filter(w => /^[A-ZİĞÜŞÖÇ][a-zığüşöç]+$/.test(w))
-    if (titleCaseWords.length >= 2) return true
+    // 3+ kelimelik öbeklerde, "iptv" dışındaki kelimelerin HİÇBİRİ bilinen teknoloji/ASO
+    // köküyle eşleşmiyorsa muhtemelen isim/anlamsız kombinasyondur (örn. "iptv alexander sofronov")
+    if (words.length >= 3) {
+      const nonSeedWords = lower.filter(w => w !== 'iptv')
+      const hasRelevantRoot = nonSeedWords.some(w => RELEVANT_ROOTS.some(root => w.includes(root)))
+      if (!hasRelevantRoot) return true
+    }
 
     return false
   }
