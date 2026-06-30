@@ -47,10 +47,11 @@ Deploy tamamlandığında sana `https://aso-tool-xxx.vercel.app` gibi bir URL ve
 
 Sıralama Trendi sayfasının çalışması için Vercel'de bir Redis (KV) veritabanı bağlaman gerekiyor:
 
-1. Vercel projende → **Storage** sekmesi → **Create Database** → **KV** (Upstash Redis destekli) seç
-2. Oluştur ve projene bağla — gerekli environment variable'lar (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) otomatik eklenir
-3. Projeyi **Redeploy** et
-4. Artık Keyword Tracker sayfasından "+ Günlük Takip Et" butonunu kullanabilirsin, cron job her gün 06:00 UTC'de otomatik tarar
+1. Vercel projende → **Storage** sekmesi → **Create Database** → **Marketplace Database Providers** altından **Upstash** seç (⚠ "Redis" yazan ayrı kart **Redis Cloud**'dur, o farklı bir bağlantı formatı kullanır ve bu projeyle uyumlu değildir — mutlaka **Upstash**'i seç)
+2. Upstash ekranında **Redis** türünü seç (Vector/Queue değil)
+3. Oluştur ve projene bağla — gerekli environment variable'lar (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) otomatik eklenir
+4. Projeyi **Redeploy** et
+5. Artık Keyword Tracker sayfasından "+ Günlük Takip Et" butonunu kullanabilirsin, cron job her gün 06:00 UTC'de otomatik tarar
 
 KV kurmazsan diğer tüm özellikler (toplu tarama, rakip analizi, yorum madenciliği vb.) sorunsuz çalışmaya devam eder — sadece Sıralama Trendi sayfası "Redis bağlı değil" uyarısı gösterir.
 
