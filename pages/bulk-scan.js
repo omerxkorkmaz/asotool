@@ -312,6 +312,17 @@ export default function BulkScan() {
                 </div>
               )}
 
+              {draftResult.aiError && (
+                <div className="card" style={{ borderLeft: '3px solid var(--red)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 6, fontWeight: 500 }}>⚠ AI ANALİZİ BAŞARISIZ OLDU</div>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                    Gemini API çağrısı hata verdi: <code style={{ color: 'var(--red)' }}>{draftResult.aiError}</code>
+                    <br/>Aşağıda yine de kelime bazlı kontrol (Gemini'siz) görünüyor, bu doğru ve güvenilir.
+                    Bu hata genelde geçersiz/süresi dolmuş API key veya günlük kotanın aşılmasından kaynaklanır.
+                  </p>
+                </div>
+              )}
+
               {!draftResult.aiAvailable && (
                 <div className="card" style={{ borderLeft: '3px solid var(--blue)' }}>
                   <div style={{ fontSize: 12, color: 'var(--blue)', marginBottom: 6, fontWeight: 500 }}>ℹ AI ANALİZ KAPALI</div>
@@ -416,7 +427,9 @@ export default function BulkScan() {
                     <thead>
                       <tr>
                         <th>Kelime</th>
-                        <th>Taslakta Durumu</th>
+                        <th>Başlıkta</th>
+                        <th>Açıklamada</th>
+                        <th>Genel Durum</th>
                         <th>Önceki Tarama Durumu</th>
                       </tr>
                     </thead>
@@ -426,11 +439,23 @@ export default function BulkScan() {
                           <td style={{ fontSize: 13, color: 'var(--text)' }}>{k.keyword}</td>
                           <td>
                             {k.inTitle
-                              ? <span className="tag" style={{ color: 'var(--accent)' }}>Başlıkta</span>
+                              ? <span style={{ color: 'var(--accent)' }}>✓</span>
+                              : <span style={{ color: 'var(--muted)' }}>—</span>}
+                          </td>
+                          <td>
+                            {k.inDescription
+                              ? <span style={{ color: k.inFirstLines ? 'var(--accent)' : 'var(--warn)' }}>
+                                  ✓ {k.inFirstLines ? '(ilk satırlar)' : `(${k.occurrences}x geçiyor)`}
+                                </span>
+                              : <span style={{ color: 'var(--muted)' }}>—</span>}
+                          </td>
+                          <td>
+                            {k.inTitle
+                              ? <span className="tag" style={{ color: 'var(--accent)' }}>Güçlü</span>
                               : k.inFirstLines
-                                ? <span className="tag" style={{ color: 'var(--accent)' }}>İlk satırlarda</span>
+                                ? <span className="tag" style={{ color: 'var(--accent)' }}>Güçlü</span>
                                 : k.inDescription
-                                  ? <span className="tag" style={{ color: 'var(--warn)' }}>Açıklamada (geç)</span>
+                                  ? <span className="tag" style={{ color: 'var(--warn)' }}>Zayıf</span>
                                   : <span className="tag" style={{ color: 'var(--red)' }}>Hiç yok</span>
                             }
                           </td>

@@ -64,6 +64,7 @@ export default async function handler(req, res) {
 
   // 2) Gemini ile derin analiz (key varsa)
   let aiAnalysis = null
+  let aiError = null
   const apiKey = process.env.GEMINI_API_KEY
   if (apiKey) {
     try {
@@ -112,6 +113,7 @@ GÖREV: SADECE aşağıdaki JSON formatında yanıt ver, başka metin ekleme.
     } catch (err) {
       console.error('Gemini taslak analiz hatası:', err.message)
       aiAnalysis = null
+      aiError = err.message
     }
   }
 
@@ -126,5 +128,6 @@ GÖREV: SADECE aşağıdaki JSON formatında yanıt ver, başka metin ekleme.
     malformedChecks, // ekranda "bunlar analiz dışı bırakıldı" diye gösterilebilir
     aiAnalysis,
     aiAvailable: !!apiKey,
+    aiError, // varsa, frontend bunu gösterip sessiz başarısızlığı önler
   })
 }
