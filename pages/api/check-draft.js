@@ -39,6 +39,7 @@ export default async function handler(req, res) {
         previousDurum: r.durum,
         previousFirsatSkoru: r.firsatSkoru,
         myRank: r.myRank,
+        totalResults: r.totalResults,
       }
     })
 
@@ -90,8 +91,15 @@ export default async function handler(req, res) {
     return false
   }
 
-  const validChecks = keywordChecks.filter(k => !looksMalformed(k.keyword))
-  const malformedChecks = keywordChecks.filter(k => looksMalformed(k.keyword))
+  // Düşük hacim filtresi: Toplu Tarama zaten bu kelimeyi "Düşük Hacim" diye etiketlediyse
+  // (çok az sonuç dönüyor, gerçek kullanıcı arama davranışı değil — örn. "iptval" gibi rastgele
+  // birleşmiş tek kelimeler) taslak kontrolünde de "kritik eksik" diye gösterilmemeli.
+  function isLowVolume(check) {
+    return check.previousDurum === 'Düşük Hacim'
+  }
+
+  const validChecks = keywordChecks.filter(k => !looksMalformed(k.keyword) && !isLowVolume(k))
+  const malformedChecks = keywordChecks.filter(k => looksMalformed(k.keyword) || isLowVolume(k))
 
   const missingInDraft = validChecks.filter(k => !k.inTitle && !k.inDescription)
   const weakInDraft = validChecks.filter(k => (k.inDescription && !k.inFirstLines) && !k.inTitle)

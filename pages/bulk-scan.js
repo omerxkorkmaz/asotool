@@ -356,12 +356,15 @@ export default function BulkScan() {
                     ℹ {draftResult.malformedChecks.length} KELİME ANALİZ DIŞI BIRAKILDI
                   </div>
                   <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 8 }}>
-                    Bu kelimeler gerçek bir arama terimi gibi görünmüyor (muhtemelen Toplu Tarama'da birden fazla
-                    kelime yanlışlıkla birleşmiş). Analize dahil edilmedi:
+                    Bu kelimeler ya gerçek bir arama terimi gibi görünmüyor (anlamsız kombinasyon, marka adı, kişi ismi)
+                    ya da çok düşük hacimli (gerçek kullanıcılar aramıyor). İkisi de yanıltıcı "eksiklik" gibi
+                    görünmesin diye analize dahil edilmedi:
                   </p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {draftResult.malformedChecks.map((k, i) => (
-                      <span key={i} className="tag" style={{ fontSize: 11 }}>{k.keyword}</span>
+                      <span key={i} className="tag" style={{ fontSize: 11 }} title={k.previousDurum}>
+                        {k.keyword} {k.previousDurum === 'Düşük Hacim' && '(düşük hacim)'}
+                      </span>
                     ))}
                   </div>
                 </div>
