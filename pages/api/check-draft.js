@@ -46,12 +46,34 @@ export default async function handler(req, res) {
   // öbekler genelde "iptv, iptv player" gibi yanlışlıkla birleştirilmiş girdilerdir, gerçek
   // arama terimi değildir. Bunları ayrı işaretliyoruz ki hem ekranda hem Gemini'ye gönderirken
   // yanıltıcı "kritik eksik" gibi görünmesinler.
+  //
+  // Ayrıca: bilinen rakip IPTV uygulama markaları ve "marka + kişi ismi" örüntüsündeki
+  // kelimeler (örn. "iptv smarters pro", "iptv alexander sofronov") marka ihlali riski taşıdığı
+  // için baştan ayıklanır — bunlar ne ekranda "eksik kelime" olarak gösterilir ne Gemini'ye
+  // gönderilir, çünkü kullanıcıyı yanlışlıkla bu kelimeleri eklemeye yönlendirebilir.
+  const KNOWN_COMPETITOR_BRANDS = [
+    'smarters', 'ibo player', 'iboplayer', 'tivimate', 'gse smart', 'perfect player',
+    'ss iptv', 'duplex play', 'xciptv',
+  ]
+
   function looksMalformed(keyword) {
+    const lowerFull = keyword.trim().toLowerCase()
     const words = keyword.trim().split(/\s+/)
+
     if (words.length >= 5) return true
+
     const lower = words.map(w => w.toLowerCase().replace(/[,.-]/g, ''))
     const uniqueRatio = new Set(lower).size / lower.length
     if (lower.length >= 3 && uniqueRatio < 0.6) return true // aynı kelime tekrar tekrar geçiyor
+
+    // Bilinen rakip marka adı içeriyor mu?
+    if (KNOWN_COMPETITOR_BRANDS.some(brand => lowerFull.includes(brand))) return true
+
+    // "İsim Soyisim" örüntüsü (iki ardışık büyük-harfle-başlayan kelime, kişi adı olabilir)
+    // — orijinal (lowercase yapılmamış) kelimeyi kontrol ediyoruz
+    const titleCaseWords = keyword.trim().split(/\s+/).filter(w => /^[A-ZİĞÜŞÖÇ][a-zığüşöç]+$/.test(w))
+    if (titleCaseWords.length >= 2) return true
+
     return false
   }
 
@@ -124,7 +146,10 @@ bunlar doğrudan Play Store'a o dilde yayınlanacak.
   "iyilestirilmis_aciklama_ilk_paragraf_onerisi": "taslağın açıklama ilk paragrafını temel alan, eksik kelimeleri doğal şekilde ekleyen geliştirilmiş bir versiyon (2-4 cümle)"
 }
 
-Önemli kurallar: Rakip marka/uygulama isimlerini (örn. başka bir uygulamanın adı) metne eklemeyi ASLA önerme, bu marka ihlali riski taşır. Sadece jenerik, kategoriyi tanımlayan kelimeleri öner. Taslağın tonunu ve markasını koru, baştan yazma.`
+Önemli kurallar:
+1. Rakip marka/uygulama isimlerini (örn. başka bir uygulamanın adı, geliştirici/yayıncı ismi) metne eklemeyi ASLA önerme, bu marka ihlali riski taşır. Sadece jenerik, kategoriyi tanımlayan kelimeleri öner.
+2. Önerdiğin başlık ve açıklama metinlerinde KESİNLİKLE markdown işareti kullanma (**, *, #, _, vb.) — Google Play açıklamaları düz metin gösterir, yıldız işaretleri kullanıcıya çift yıldız olarak görünür, çok kötü durur. Vurgu yapmak istiyorsan emoji veya büyük harf kullan, markdown değil.
+3. Taslağın tonunu ve markasını koru, baştan yazma.`
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
