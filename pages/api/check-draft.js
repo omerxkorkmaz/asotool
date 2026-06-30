@@ -66,15 +66,27 @@ export default async function handler(req, res) {
   let aiAnalysis = null
   let aiError = null
   const apiKey = process.env.GEMINI_API_KEY
+
+  // ASO skorunu kod tarafında deterministik hesapla (Gemini'nin her seferinde farklı
+  // sezgisel sayı üretmesini önlemek için). Basit ve şeffaf bir formül: kapsama oranı.
+  // Güçlü konum 1 puan, zayıf konum 0.4 puan, hiç yok 0 puan üzerinden ağırlıklı ortalama.
+  const total = validChecks.length || 1
+  const weightedSum = strongInDraft.length * 1 + weakInDraft.length * 0.4
+  const asoSkoru = Math.round((weightedSum / total) * 100)
+
   if (apiKey) {
     try {
       const ai = new GoogleGenAI({ apiKey })
 
-      const keywordSummary = validChecks.map(k =>
-        `- "${k.keyword}" (önceki tarama durumu: ${k.previousDurum}, fırsat skoru: ${k.previousFirsatSkoru}/100) → taslakta: ${k.inTitle ? 'BAŞLIKTA VAR' : k.inFirstLines ? 'İLK SATIRLARDA VAR' : k.inDescription ? 'AÇIKLAMADA VAR (geç konumda)' : 'HİÇ YOK'}`
-      ).join('\n')
+      // Taslaktaki durum ile eski/yayındaki durum birbirine karışmasın diye iki ayrı
+      // bölüm halinde veriyoruz. Gemini önceki tarama bilgisini sadece bağlam için kullansın,
+      // "taslak iyi mi" sorusunu SADECE taslak sütununa bakarak cevaplasın.
+      const keywordSummary = validChecks.map(k => {
+        const taslakDurum = k.inTitle ? 'GÜÇLÜ (başlıkta)' : k.inFirstLines ? 'GÜÇLÜ (açıklama ilk satırlarında)' : k.inDescription ? 'ZAYIF (açıklamada geç konumda)' : 'HİÇ YOK'
+        return `- "${k.keyword}" → TASLAKTAKİ DURUM: ${taslakDurum} (bağlam: yayındaki eski sürümde bu kelime "${k.previousDurum}" durumundaydı, bu sadece geçmiş bilgi, taslağı bundan bağımsız değerlendir)`
+      }).join('\n')
 
-      const prompt = `Sen bir Google Play ASO (App Store Optimization) uzmanısın. Bir geliştirici henüz YAYINLAMADIĞI bir başlık ve açıklama taslağı hazırladı. Bu taslağı, daha önce yaptığı keyword (anahtar kelime) taramasının sonuçlarına göre değerlendir.
+      const prompt = `Sen bir Google Play ASO (App Store Optimization) uzmanısın. Bir geliştirici henüz YAYINLAMADIĞI bir başlık ve açıklama taslağı hazırladı. Bu taslağı değerlendir.
 
 TASLAK BAŞLIK:
 ${draftTitle || '(girilmedi)'}
@@ -82,21 +94,27 @@ ${draftTitle || '(girilmedi)'}
 TASLAK AÇIKLAMA:
 ${draftDescription || '(girilmedi)'}
 
-DAHA ÖNCE TARANAN KELİMELER VE TASLAKTAKİ DURUMU:
+HER KELİMENİN TASLAKTAKİ GERÇEK DURUMU (bu en güncel ve doğru bilgi, buna göre değerlendir):
 ${keywordSummary || '(geçerli kelime bulunamadı)'}
 
-ÖNEMLİ UYARI: Yukarıdaki kelime listesinde hâlâ anlamsız, gerçek bir kullanıcının asla aramayacağı türden
-öbekler görürsen (örneğin aynı kelimenin art arda tekrarı, virgülle birleştirilmiş iki farklı arama terimi,
-5+ kelimelik anlamsız diziler) bunları analiz dışı bırak, "kritik eksik" olarak gösterme ve bunlardan skor
-düşürme. Sadece gerçekçi, bir kullanıcının Play Store'da gerçekten yazabileceği türden kelime/öbekleri dikkate al.
+KRİTİK KURAL: Yukarıda "TASLAKTAKİ DURUM: GÜÇLÜ" yazan bir kelime için ASLA "eksik", "zayıf" veya "iyileştirilmeli"
+deme — bu kelime taslakta zaten güçlü konumda, övgüyü hak ediyor. Sadece "TASLAKTAKİ DURUM: HİÇ YOK" veya
+"ZAYIF" yazan kelimeler için eksiklik/iyileştirme öner. "bağlam" notundaki eski yayın bilgisini değerlendirmene
+katma, o sadece geçmişe dair ek bilgi, taslağın kalitesini etkilemez.
+
+ÖNEMLİ UYARI: Kelime listesinde hâlâ anlamsız, gerçek bir kullanıcının asla aramayacağı türden öbekler
+görürsen (aynı kelimenin art arda tekrarı, virgülle birleştirilmiş iki farklı terim, 5+ kelimelik anlamsız
+diziler) bunları analiz dışı bırak, eksiklik olarak gösterme.
+
+HESAPLANMIŞ ASO SKORU: ${asoSkoru}/100 (bu skor kod tarafında matematiksel olarak hesaplandı: ${strongInDraft.length} kelime güçlü, ${weakInDraft.length} kelime zayıf, ${missingInDraft.length} kelime hiç yok, toplam ${total} kelime üzerinden). Bu skoru olduğu gibi kullan, kendi skorunu üretme.
 
 GÖREV: SADECE aşağıdaki JSON formatında yanıt ver, başka metin ekleme.
 
 {
-  "aso_skoru": 0-100 arası tek bir sayı (taslağın taranan GEÇERLİ kelimeleri ne kadar iyi kapsadığına göre),
-  "genel_degerlendirme": "2-3 cümlelik özet: taslak genel olarak iyi mi, neyi kaçırıyor",
-  "iyi_yapilanlar": ["taslağın doğru yaptığı 2-3 somut şey"],
-  "kritik_eksikler": ["en önemli 2-4 eksik veya risk, her biri somut ve aksiyona dönüştürülebilir, sadece geçerli kelimelere dayalı"],
+  "aso_skoru": ${asoSkoru},
+  "genel_degerlendirme": "2-3 cümlelik özet: taslak genel olarak iyi mi, neyi kaçırıyor (SADECE 'HİÇ YOK' veya 'ZAYIF' durumundaki kelimelere odaklan)",
+  "iyi_yapilanlar": ["taslağın doğru yaptığı 2-3 somut şey, GÜÇLÜ durumdaki kelimelere referansla"],
+  "kritik_eksikler": ["en önemli 2-4 eksik, SADECE 'HİÇ YOK' durumundaki kelimelerden seç, her biri somut ve aksiyona dönüştürülebilir"],
   "risk_uyarilari": ["varsa: marka ihlali riski, yasaklı kelime, telif riski, ban riski gibi politika uyarıları — yoksa boş array"],
   "iyilestirilmis_baslik_onerisi": "taslağı temel alan, eksikleri gideren somut bir başlık önerisi (50 karakter altı)",
   "iyilestirilmis_aciklama_ilk_paragraf_onerisi": "taslağın açıklama ilk paragrafını temel alan, eksik kelimeleri doğal şekilde ekleyen geliştirilmiş bir versiyon (2-4 cümle)"
@@ -110,6 +128,7 @@ GÖREV: SADECE aşağıdaki JSON formatında yanıt ver, başka metin ekleme.
         config: { responseMimeType: 'application/json' },
       })
       aiAnalysis = JSON.parse(response.text)
+      aiAnalysis.aso_skoru = asoSkoru // her ihtimale karşı kod-hesaplı skoru zorla, tutarlılık garantisi
     } catch (err) {
       console.error('Gemini taslak analiz hatası:', err.message)
       aiAnalysis = null
@@ -121,13 +140,14 @@ GÖREV: SADECE aşağıdaki JSON formatında yanıt ver, başka metin ekleme.
     titleLength: (draftTitle || '').length,
     descriptionLength: (draftDescription || '').length,
     totalKeywordsChecked: validChecks.length,
+    asoSkoru, // her zaman mevcut, Gemini olmasa bile deterministik kapsama skoru görünür
     missingInDraft,
     weakInDraft,
     strongInDraft,
     keywordChecks: validChecks,
-    malformedChecks, // ekranda "bunlar analiz dışı bırakıldı" diye gösterilebilir
+    malformedChecks,
     aiAnalysis,
     aiAvailable: !!apiKey,
-    aiError, // varsa, frontend bunu gösterip sessiz başarısızlığı önler
+    aiError,
   })
 }

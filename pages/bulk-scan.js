@@ -333,22 +333,30 @@ export default function BulkScan() {
                 </div>
               )}
 
-              {draftResult.aiAnalysis && (
-                <>
-                  <div className="card" style={{ borderLeft: '3px solid var(--accent)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
-                      <div style={{ fontFamily: 'var(--mono)', fontSize: 40, fontWeight: 600, color: scoreColor(draftResult.aiAnalysis.aso_skoru) }}>
-                        {draftResult.aiAnalysis.aso_skoru}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>ASO SKORU / 100</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>{draftResult.totalKeywordsChecked} kelime baz alındı</div>
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{draftResult.aiAnalysis.genel_degerlendirme}</p>
+              {/* ASO Skoru — her zaman gösterilir, deterministik hesaplanır (kapsama oranına dayalı) */}
+              <div className="card" style={{ borderLeft: '3px solid var(--accent)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: draftResult.aiAnalysis ? 14 : 0 }}>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 40, fontWeight: 600, color: scoreColor(draftResult.asoSkoru) }}>
+                    {draftResult.asoSkoru}
                   </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>ASO SKORU / 100</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                      {draftResult.totalKeywordsChecked} kelime baz alındı · {draftResult.strongInDraft.length} güçlü, {draftResult.weakInDraft.length} zayıf, {draftResult.missingInDraft.length} hiç yok
+                    </div>
+                  </div>
+                </div>
+                {draftResult.aiAnalysis && (
+                  <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{draftResult.aiAnalysis.genel_degerlendirme}</p>
+                )}
+                <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 8, fontStyle: 'italic' }}>
+                  Hesaplama: güçlü konumdaki her kelime 1 puan, zayıf konumdaki 0.4 puan, hiç olmayan 0 puan sayılıp
+                  toplam kelime sayısına bölünür. Bu skor matematiksel ve sabittir, her seferinde aynı çıkar.
+                </p>
+              </div>
 
-                  {draftResult.aiAnalysis.risk_uyarilari?.length > 0 && (
+              {draftResult.aiAnalysis && (
+                <>                  {draftResult.aiAnalysis.risk_uyarilari?.length > 0 && (
                     <div className="card" style={{ borderLeft: '3px solid var(--red)' }}>
                       <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 10, fontWeight: 500 }}>⚠ RİSK UYARILARI</div>
                       <div className="stack">
