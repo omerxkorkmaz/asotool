@@ -33,6 +33,13 @@ export default function BulkScan() {
 
   async function expandKeyword() {
     if (!seed.trim()) return
+
+    // Kullanıcı virgül veya satırla birden fazla kelime girdiyse ayrıştır (örn. "iptv, iptv player")
+    // Bu olmadan rakip-kelime ekleme mantığı bunları birleştirip anlamsız öbekler üretiyordu.
+    const seedParts = seed.split(/[,\n]/).map(s => s.trim()).filter(Boolean)
+    const primarySeed = seedParts[0] // genişletme için ilk kelimeyi kullan
+    const extraSeeds = seedParts.slice(1) // geri kalanlar direkt seçili listeye eklenir, genişletilmez
+
     setExpanding(true)
     setExpansion(null)
     setScanResult(null)
@@ -40,13 +47,14 @@ export default function BulkScan() {
       const r = await fetch('/api/expand-keyword', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seed: seed.trim() })
+        body: JSON.stringify({ seed: primarySeed })
       })
       const d = await r.json()
       if (d.error) { alert(d.error); return }
       setExpansion(d)
-      // Kök kelime + ilk 9 öneri otomatik seçili gelsin
-      setSelectedKeywords([seed.trim(), ...d.suggestions.slice(0, 9).map(s => s.keyword)])
+      // Kök kelime(ler) + ilk 9 öneri otomatik seçili gelsin
+      const baseKeywords = [primarySeed, ...extraSeeds]
+      setSelectedKeywords([...new Set([...baseKeywords, ...d.suggestions.slice(0, 9).map(s => s.keyword)])])
     } finally { setExpanding(false) }
   }
 
@@ -55,9 +63,10 @@ export default function BulkScan() {
   }
 
   function addManual() {
-    const kw = manualKw.trim().toLowerCase()
-    if (!kw || selectedKeywords.includes(kw)) return
-    setSelectedKeywords(s => [...s, kw])
+    // Burada da virgülle birden fazla kelime girilmiş olabilir, ayrı ayrı ekle
+    const parts = manualKw.split(/[,\n]/).map(s => s.trim().toLowerCase()).filter(Boolean)
+    if (parts.length === 0) return
+    setSelectedKeywords(s => [...new Set([...s, ...parts])])
     setManualKw('')
   }
 
@@ -106,7 +115,7 @@ export default function BulkScan() {
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-title">1. Adım — Kök Kelime Gir</div>
         <div className="input-row">
-          <input className="input" placeholder="örn: iptv" value={seed}
+          <input className="input" placeholder="örn: iptv (virgülle birden fazla kelime girebilirsin: iptv, iptv player)" value={seed}
             onChange={e => setSeed(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && expandKeyword()} />
           <input className="input" style={{ maxWidth: 260 }} placeholder="Package name" value={appId}
@@ -117,6 +126,9 @@ export default function BulkScan() {
         </div>
         <p style={{ fontSize: 11, color: 'var(--muted)' }}>
           "iptv" yazarsan: Google'ın otomatik tamamlama önerilerini ve ilk 25 rakibin metninde en sık geçen kelimeleri bulup sana ilgili varyasyonlar önereceğiz.
+          Birden fazla kelimeyi <strong>virgülle ayırarak</strong> girebilirsin (örn. "iptv, iptv player") — her biri ayrı ayrı taranır, birbirine
+          eklenmez. <strong>Önemli:</strong> tek bir kutuya "iptv player" gibi iki kelimeyi boşlukla yapıştırman sorun değil (bu zaten doğru bir arama
+          terimi), ama farklı iki ayrı arama terimini virgülsüz yan yana yazma.
         </p>
       </div>
 
@@ -159,7 +171,7 @@ export default function BulkScan() {
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, fontWeight: 500 }}>+ MANUEL KELİME EKLE</div>
             <div className="input-row" style={{ marginBottom: 0 }}>
-              <input className="input" placeholder="Kendi aklına gelen bir kelime varsa ekle"
+              <input className="input" placeholder="Kendi aklına gelen kelime(ler), virgülle ayırarak birden fazla ekleyebilirsin"
                 value={manualKw} onChange={e => setManualKw(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addManual()} />
               <button className="btn btn-ghost" onClick={addManual}>Ekle</button>
@@ -283,6 +295,23 @@ export default function BulkScan() {
 
           {draftResult && (
             <div className="stack">
+              {draftResult.malformedChecks?.length > 0 && (
+                <div className="card" style={{ borderLeft: '3px solid var(--muted)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, fontWeight: 500 }}>
+                    ℹ {draftResult.malformedChecks.length} KELİME ANALİZ DIŞI BIRAKILDI
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 8 }}>
+                    Bu kelimeler gerçek bir arama terimi gibi görünmüyor (muhtemelen Toplu Tarama'da birden fazla
+                    kelime yanlışlıkla birleşmiş). Analize dahil edilmedi:
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {draftResult.malformedChecks.map((k, i) => (
+                      <span key={i} className="tag" style={{ fontSize: 11 }}>{k.keyword}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {!draftResult.aiAvailable && (
                 <div className="card" style={{ borderLeft: '3px solid var(--blue)' }}>
                   <div style={{ fontSize: 12, color: 'var(--blue)', marginBottom: 6, fontWeight: 500 }}>ℹ AI ANALİZ KAPALI</div>

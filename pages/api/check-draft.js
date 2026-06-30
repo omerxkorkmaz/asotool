@@ -42,9 +42,25 @@ export default async function handler(req, res) {
       }
     })
 
-  const missingInDraft = keywordChecks.filter(k => !k.inTitle && !k.inDescription)
-  const weakInDraft = keywordChecks.filter(k => (k.inDescription && !k.inFirstLines) && !k.inTitle)
-  const strongInDraft = keywordChecks.filter(k => k.inTitle || k.inFirstLines)
+  // Bozuk/anlamsız kelime tespiti: aynı kökü birden fazla kez içeren veya 5+ kelimelik
+  // öbekler genelde "iptv, iptv player" gibi yanlışlıkla birleştirilmiş girdilerdir, gerçek
+  // arama terimi değildir. Bunları ayrı işaretliyoruz ki hem ekranda hem Gemini'ye gönderirken
+  // yanıltıcı "kritik eksik" gibi görünmesinler.
+  function looksMalformed(keyword) {
+    const words = keyword.trim().split(/\s+/)
+    if (words.length >= 5) return true
+    const lower = words.map(w => w.toLowerCase().replace(/[,.-]/g, ''))
+    const uniqueRatio = new Set(lower).size / lower.length
+    if (lower.length >= 3 && uniqueRatio < 0.6) return true // aynı kelime tekrar tekrar geçiyor
+    return false
+  }
+
+  const validChecks = keywordChecks.filter(k => !looksMalformed(k.keyword))
+  const malformedChecks = keywordChecks.filter(k => looksMalformed(k.keyword))
+
+  const missingInDraft = validChecks.filter(k => !k.inTitle && !k.inDescription)
+  const weakInDraft = validChecks.filter(k => (k.inDescription && !k.inFirstLines) && !k.inTitle)
+  const strongInDraft = validChecks.filter(k => k.inTitle || k.inFirstLines)
 
   // 2) Gemini ile derin analiz (key varsa)
   let aiAnalysis = null
@@ -53,7 +69,7 @@ export default async function handler(req, res) {
     try {
       const ai = new GoogleGenAI({ apiKey })
 
-      const keywordSummary = keywordChecks.map(k =>
+      const keywordSummary = validChecks.map(k =>
         `- "${k.keyword}" (önceki tarama durumu: ${k.previousDurum}, fırsat skoru: ${k.previousFirsatSkoru}/100) → taslakta: ${k.inTitle ? 'BAŞLIKTA VAR' : k.inFirstLines ? 'İLK SATIRLARDA VAR' : k.inDescription ? 'AÇIKLAMADA VAR (geç konumda)' : 'HİÇ YOK'}`
       ).join('\n')
 
@@ -66,15 +82,20 @@ TASLAK AÇIKLAMA:
 ${draftDescription || '(girilmedi)'}
 
 DAHA ÖNCE TARANAN KELİMELER VE TASLAKTAKİ DURUMU:
-${keywordSummary}
+${keywordSummary || '(geçerli kelime bulunamadı)'}
+
+ÖNEMLİ UYARI: Yukarıdaki kelime listesinde hâlâ anlamsız, gerçek bir kullanıcının asla aramayacağı türden
+öbekler görürsen (örneğin aynı kelimenin art arda tekrarı, virgülle birleştirilmiş iki farklı arama terimi,
+5+ kelimelik anlamsız diziler) bunları analiz dışı bırak, "kritik eksik" olarak gösterme ve bunlardan skor
+düşürme. Sadece gerçekçi, bir kullanıcının Play Store'da gerçekten yazabileceği türden kelime/öbekleri dikkate al.
 
 GÖREV: SADECE aşağıdaki JSON formatında yanıt ver, başka metin ekleme.
 
 {
-  "aso_skoru": 0-100 arası tek bir sayı (taslağın taranan kelimeleri ne kadar iyi kapsadığına göre),
+  "aso_skoru": 0-100 arası tek bir sayı (taslağın taranan GEÇERLİ kelimeleri ne kadar iyi kapsadığına göre),
   "genel_degerlendirme": "2-3 cümlelik özet: taslak genel olarak iyi mi, neyi kaçırıyor",
   "iyi_yapilanlar": ["taslağın doğru yaptığı 2-3 somut şey"],
-  "kritik_eksikler": ["en önemli 2-4 eksik veya risk, her biri somut ve aksiyona dönüştürülebilir"],
+  "kritik_eksikler": ["en önemli 2-4 eksik veya risk, her biri somut ve aksiyona dönüştürülebilir, sadece geçerli kelimelere dayalı"],
   "risk_uyarilari": ["varsa: marka ihlali riski, yasaklı kelime, telif riski, ban riski gibi politika uyarıları — yoksa boş array"],
   "iyilestirilmis_baslik_onerisi": "taslağı temel alan, eksikleri gideren somut bir başlık önerisi (50 karakter altı)",
   "iyilestirilmis_aciklama_ilk_paragraf_onerisi": "taslağın açıklama ilk paragrafını temel alan, eksik kelimeleri doğal şekilde ekleyen geliştirilmiş bir versiyon (2-4 cümle)"
@@ -97,11 +118,12 @@ GÖREV: SADECE aşağıdaki JSON formatında yanıt ver, başka metin ekleme.
   return res.status(200).json({
     titleLength: (draftTitle || '').length,
     descriptionLength: (draftDescription || '').length,
-    totalKeywordsChecked: keywordChecks.length,
+    totalKeywordsChecked: validChecks.length,
     missingInDraft,
     weakInDraft,
     strongInDraft,
-    keywordChecks,
+    keywordChecks: validChecks,
+    malformedChecks, // ekranda "bunlar analiz dışı bırakıldı" diye gösterilebilir
     aiAnalysis,
     aiAvailable: !!apiKey,
   })
