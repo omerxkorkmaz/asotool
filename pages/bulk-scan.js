@@ -21,6 +21,11 @@ export default function BulkScan() {
   const [scanResult, setScanResult] = useState(null)
   const [openRow, setOpenRow] = useState(null)
 
+  const [draftTitle, setDraftTitle] = useState('')
+  const [draftDescription, setDraftDescription] = useState('')
+  const [checkingDraft, setCheckingDraft] = useState(false)
+  const [draftResult, setDraftResult] = useState(null)
+
   useEffect(() => {
     const saved = localStorage.getItem('myAppId') || ''
     setAppId(saved)
@@ -60,6 +65,7 @@ export default function BulkScan() {
     if (selectedKeywords.length === 0) return
     setScanning(true)
     setScanResult(null)
+    setDraftResult(null)
     try {
       const r = await fetch('/api/bulk-scan', {
         method: 'POST',
@@ -70,6 +76,27 @@ export default function BulkScan() {
       if (d.error) { alert(d.error); return }
       setScanResult(d)
     } finally { setScanning(false) }
+  }
+
+  async function checkDraft() {
+    if (!draftTitle.trim() && !draftDescription.trim()) return
+    if (!scanResult?.results?.length) return
+    setCheckingDraft(true)
+    setDraftResult(null)
+    try {
+      const r = await fetch('/api/check-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          draftTitle: draftTitle.trim(),
+          draftDescription: draftDescription.trim(),
+          scanResults: scanResult.results,
+        })
+      })
+      const d = await r.json()
+      if (d.error) { alert(d.error); return }
+      setDraftResult(d)
+    } finally { setCheckingDraft(false) }
   }
 
   return (
@@ -215,10 +242,188 @@ export default function BulkScan() {
               </div>
             )
           })}
+
+          {/* ============ 3. ADIM: TASLAĞINI KONTROL ET ============ */}
+          <div className="card" style={{ borderLeft: '3px solid var(--accent)', marginTop: 8 }}>
+            <div className="card-title">3. Adım — Yayınlamadan Önce Taslağını Kontrol Et</div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 16 }}>
+              Yukarıda taradığın {scanResult.total} kelimeye göre, henüz Play Store'a basmadığın bir başlık/açıklama
+              taslağını buraya yapıştır. Tekrar Play Store'u taramadan, sadece taslağın bu kelimeleri ne kadar iyi
+              kapsadığını kontrol ederiz — yanlış çıkarsa düzeltip tekrar deneyebilirsin, hiçbir şey yayınlamadan.
+            </p>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>TASLAK BAŞLIK</div>
+              <input className="input" style={{ width: '100%' }} placeholder="Örn: Setbox IPTV Player – M3U & Xtream Codes..."
+                value={draftTitle} onChange={e => setDraftTitle(e.target.value)} />
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontFamily: 'var(--mono)' }}>
+                {draftTitle.length} karakter {draftTitle.length > 50 && <span style={{ color: 'var(--warn)' }}>(Play Store başlık limiti genelde 50)</span>}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>TASLAK AÇIKLAMA</div>
+              <textarea className="input" style={{ width: '100%', minHeight: 160, fontFamily: 'inherit', resize: 'vertical' }}
+                placeholder="Tam açıklama metnini buraya yapıştır..."
+                value={draftDescription} onChange={e => setDraftDescription(e.target.value)} />
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontFamily: 'var(--mono)' }}>
+                {draftDescription.length} karakter
+              </div>
+            </div>
+
+            <button className="btn btn-primary" style={{ width: '100%' }}
+              onClick={checkDraft} disabled={checkingDraft || (!draftTitle.trim() && !draftDescription.trim())}>
+              {checkingDraft ? <span className="spinner" /> : 'Taslağı Kontrol Et'}
+            </button>
+          </div>
+
+          {checkingDraft && (
+            <div className="loading-row"><span className="spinner" /> Taslak, taranan {scanResult.total} kelimeyle karşılaştırılıyor ve analiz ediliyor...</div>
+          )}
+
+          {draftResult && (
+            <div className="stack">
+              {!draftResult.aiAvailable && (
+                <div className="card" style={{ borderLeft: '3px solid var(--blue)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--blue)', marginBottom: 6, fontWeight: 500 }}>ℹ AI ANALİZ KAPALI</div>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                    Aşağıda kelime bazlı kontrol (her zaman çalışır) görünüyor. ASO skoru ve somut düzeltme önerileri için
+                    <strong> GEMINI_API_KEY</strong> ortam değişkenini Vercel'e ekleyip redeploy etmen gerekiyor.
+                  </p>
+                </div>
+              )}
+
+              {draftResult.aiAnalysis && (
+                <>
+                  <div className="card" style={{ borderLeft: '3px solid var(--accent)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: 40, fontWeight: 600, color: scoreColor(draftResult.aiAnalysis.aso_skoru) }}>
+                        {draftResult.aiAnalysis.aso_skoru}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>ASO SKORU / 100</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>{draftResult.totalKeywordsChecked} kelime baz alındı</div>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{draftResult.aiAnalysis.genel_degerlendirme}</p>
+                  </div>
+
+                  {draftResult.aiAnalysis.risk_uyarilari?.length > 0 && (
+                    <div className="card" style={{ borderLeft: '3px solid var(--red)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 10, fontWeight: 500 }}>⚠ RİSK UYARILARI</div>
+                      <div className="stack">
+                        {draftResult.aiAnalysis.risk_uyarilari.map((r, i) => (
+                          <div key={i} style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, padding: '8px 12px', background: 'var(--red-dim)', borderRadius: 6 }}>
+                            {r}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid-2">
+                    <div className="card">
+                      <div className="card-title" style={{ color: 'var(--accent)' }}>✓ İyi Yapılanlar</div>
+                      <div className="stack">
+                        {draftResult.aiAnalysis.iyi_yapilanlar?.map((s, i) => (
+                          <div key={i} style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6 }}>• {s}</div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="card">
+                      <div className="card-title" style={{ color: 'var(--warn)' }}>△ Kritik Eksikler</div>
+                      <div className="stack">
+                        {draftResult.aiAnalysis.kritik_eksikler?.map((s, i) => (
+                          <div key={i} style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6 }}>• {s}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="card">
+                    <div className="card-title">İyileştirilmiş Başlık Önerisi</div>
+                    <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500, marginBottom: 8 }}>
+                      {draftResult.aiAnalysis.iyilestirilmis_baslik_onerisi}
+                    </div>
+                    <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }}
+                      onClick={() => navigator.clipboard.writeText(draftResult.aiAnalysis.iyilestirilmis_baslik_onerisi)}>
+                      Kopyala
+                    </button>
+                  </div>
+
+                  <div className="card">
+                    <div className="card-title">İyileştirilmiş Açıklama İlk Paragraf Önerisi</div>
+                    <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 8 }}>
+                      {draftResult.aiAnalysis.iyilestirilmis_aciklama_ilk_paragraf_onerisi}
+                    </p>
+                    <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }}
+                      onClick={() => navigator.clipboard.writeText(draftResult.aiAnalysis.iyilestirilmis_aciklama_ilk_paragraf_onerisi)}>
+                      Kopyala
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Kelime bazlı kontrol — her zaman gösterilir */}
+              <div className="card">
+                <div className="card-title">Kelime Bazlı Kapsama Kontrolü</div>
+                <div className="grid-3" style={{ marginBottom: 16 }}>
+                  <div style={{ textAlign: 'center', padding: 12, background: 'var(--accent-dim)', borderRadius: 8 }}>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 24, color: 'var(--accent)', fontWeight: 600 }}>{draftResult.strongInDraft.length}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Güçlü Konumda</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: 12, background: 'var(--warn-dim)', borderRadius: 8 }}>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 24, color: 'var(--warn)', fontWeight: 600 }}>{draftResult.weakInDraft.length}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Zayıf Konumda</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: 12, background: 'var(--red-dim)', borderRadius: 8 }}>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 24, color: 'var(--red)', fontWeight: 600 }}>{draftResult.missingInDraft.length}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Hiç Yok</div>
+                  </div>
+                </div>
+
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Kelime</th>
+                        <th>Taslakta Durumu</th>
+                        <th>Önceki Tarama Durumu</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {draftResult.keywordChecks.map((k, i) => (
+                        <tr key={i}>
+                          <td style={{ fontSize: 13, color: 'var(--text)' }}>{k.keyword}</td>
+                          <td>
+                            {k.inTitle
+                              ? <span className="tag" style={{ color: 'var(--accent)' }}>Başlıkta</span>
+                              : k.inFirstLines
+                                ? <span className="tag" style={{ color: 'var(--accent)' }}>İlk satırlarda</span>
+                                : k.inDescription
+                                  ? <span className="tag" style={{ color: 'var(--warn)' }}>Açıklamada (geç)</span>
+                                  : <span className="tag" style={{ color: 'var(--red)' }}>Hiç yok</span>
+                            }
+                          </td>
+                          <td style={{ fontSize: 12, color: 'var(--muted)' }}>{k.previousDurum}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </Layout>
   )
+}
+
+function scoreColor(score) {
+  if (score >= 70) return 'var(--accent)'
+  if (score >= 40) return 'var(--warn)'
+  return 'var(--red)'
 }
 
 function Chip({ kw, extra, selected, onClick }) {

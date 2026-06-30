@@ -17,6 +17,9 @@
     },
     "pages/api/title-suggest.js": {
       "maxDuration": 30
+    },
+    "pages/api/check-draft.js": {
+      "maxDuration": 30
     }
   },
   "crons": [
