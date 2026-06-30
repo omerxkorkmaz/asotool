@@ -5,11 +5,12 @@ import { logAllTrackedApps } from '@/lib/db/metrics-logger'
 export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  const expectedToken = `Bearer ${process.env.CRON_SECRET}`
-
-  if (!expectedToken || authHeader !== expectedToken) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const cronSecret = process.env.CRON_SECRET
+  if (cronSecret) {
+    const authHeader = request.headers.get('authorization')
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
   }
 
   try {
