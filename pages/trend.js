@@ -78,6 +78,7 @@ export default function Trend() {
 
   const chartData = buildChartData()
   const hasAnyData = chartData.length > 0
+  const hasEnoughForTrend = chartData.length >= 2
 
   return (
     <Layout title="Sıralama Trendi" badge="Günlük Otomatik Takip">
@@ -91,17 +92,64 @@ export default function Trend() {
 
       {appId && (
         <>
-          <div className="card" style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div className="card-title" style={{ marginBottom: 4 }}>Nasıl Çalışır</div>
-                <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
-                  Keyword Tracker sayfasında bir kelimeyi aratıp "+ Günlük Takip Et" butonuna basarsan, sistem o kelimeyi
-                  her gün otomatik olarak tarar (Vercel Cron, her gün 06:00 UTC) ve sıralamanı buraya kaydeder.
-                  Aşağıda zaman içindeki değişimi grafikte görürsün.
-                </p>
+          <div className="card" style={{ marginBottom: 20, borderLeft: '3px solid var(--accent)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', marginBottom: 12 }}>
+                  ◈ BU SAYFA NE İŞE YARAR
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, marginBottom: 4 }}>
+                    1. Ne ölçüyoruz?
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                    Takip ettiğin her kelime için, uygulamanın Google Play arama sonuçlarında <strong style={{ color: 'var(--text)' }}>kaçıncı sırada
+                    çıktığını</strong> her gün otomatik kaydediyoruz. Bu sıralama; başlığın, açıklamanın, yorumların ve
+                    rakiplerin durumuna göre günden güne değişir — bu sayfa o değişimi görünür kılar.
+                  </p>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, marginBottom: 4 }}>
+                    2. Nasıl çalışır (teknik akış)
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                    Keyword Tracker sayfasında bir kelime aratıp <strong style={{ color: 'var(--text)' }}>"+ Günlük Takip Et"</strong> butonuna
+                    bastığında, o kelime bir veritabanına (Redis) kaydedilir. Vercel'in zamanlayıcısı (Cron Job) her gün
+                    saat 06:00 UTC'de (Türkiye saatiyle yaz aylarında 09:00, kış aylarında 09:00 civarı) otomatik olarak
+                    çalışır, takip listendeki tüm kelimeleri tek tek Play Store'da arar, uygulamanın o günkü sırasını
+                    bulur ve geçmişe bir satır olarak ekler. Sen hiçbir şey yapmasan bile bu işlem arka planda kendiliğinden
+                    devam eder.
+                  </p>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, marginBottom: 4 }}>
+                    3. Bu veri sana ne sağlar?
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                    Tek bir günün sırası ("bugün 47.sin") aslında çok az şey anlatır — o gün rastgele dalgalanma da olabilir.
+                    Asıl değerli olan <strong style={{ color: 'var(--text)' }}>yöndür</strong>: başlığını değiştirdikten sonra sıra
+                    düşüyor mu (iyileşiyor mu), yoksa rakiplerin önüne mi geçiyor? Bu sayfa olmadan bunu fark etmenin tek yolu
+                    her gün elle arama yapıp not tutmaktı. Birkaç haftalık veri biriktiğinde, hangi ASO değişikliğinin işe
+                    yarayıp yaramadığını gerçek veriyle görebileceksin — tahmin etmek yerine.
+                  </p>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, marginBottom: 4 }}>
+                    4. Şu an neden grafik boş/eksik görünebilir?
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                    Bir çizgi grafiği en az 2 farklı günün verisiyle anlamlı bir çizgi çizebilir. Daha yeni takibe aldıysan
+                    elinde sadece bugünün verisi var — bu normal ve beklenen bir durum. Cron job her gün otomatik çalıştıkça
+                    (veya sen "Şimdi Manuel Tara" ile farklı günlerde elle tetikledikçe) veri birikecek ve çizgi 2-3 gün
+                    içinde belirginleşmeye başlayacak.
+                  </p>
+                </div>
               </div>
-              <button className="btn btn-ghost" onClick={runManualScan} disabled={running}>
+              <button className="btn btn-ghost" onClick={runManualScan} disabled={running} style={{ flexShrink: 0 }}>
                 {running ? <span className="spinner" /> : 'Şimdi Manuel Tara'}
               </button>
             </div>
@@ -173,6 +221,41 @@ export default function Trend() {
                   <div className="empty">
                     <div className="icon">📊</div>
                     <div>Henüz veri yok. İlk cron taraması çalıştıktan sonra (veya "Şimdi Manuel Tara" ile) grafik burada görünecek.</div>
+                  </div>
+                ) : !hasEnoughForTrend ? (
+                  <div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+                      {tracked.map((t, i) => {
+                        const hist = allHistory?.[t.keyword] || []
+                        const latest = hist[hist.length - 1]
+                        return (
+                          <div key={t.keyword} style={{
+                            flex: '1 1 200px', padding: 18, background: 'var(--bg)',
+                            border: '1px solid var(--border)', borderRadius: 8,
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                              <span style={{ width: 10, height: 10, borderRadius: 2, background: LINE_COLORS[i % LINE_COLORS.length] }} />
+                              <span style={{ fontSize: 13, color: 'var(--text)' }}>{t.keyword}</span>
+                            </div>
+                            <div style={{ fontFamily: 'var(--mono)', fontSize: 36, fontWeight: 500, color: 'var(--text)', lineHeight: 1 }}>
+                              {latest?.rank ? `#${latest.rank}` : '—'}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                              {latest?.date ? fmtShortDate(latest.date) : ''} itibarıyla sıran
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div style={{ padding: 14, background: 'var(--blue-dim)', borderRadius: 8, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <span style={{ fontSize: 16 }}>⏳</span>
+                      <p style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.7 }}>
+                        Henüz sadece <strong>1 günlük</strong> veri var, bu yüzden trend çizgisi çizilemiyor (en az 2 farklı
+                        gün gerekir). Yukarıdaki rakamlar bugünkü gerçek sıralaman — doğru ve kullanılabilir. Cron job yarın
+                        otomatik çalışınca (veya "Şimdi Manuel Tara" ile farklı bir günde tekrar tetiklersen) ikinci nokta
+                        eklenecek ve aşağıda gerçek bir trend çizgisi belirmeye başlayacak.
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <div style={{ width: '100%', height: 360 }}>
