@@ -88,6 +88,19 @@ export default async function handler(req, res) {
       if (!hasRelevantRoot) return true
     }
 
+    // Tek kelimelik girdilerde: "iptv" kökünün üzerine rastgele 1-3 harf eklenmiş ama bilinen
+    // bir ASO terimine (player, app, stream vb.) denk gelmeyen varyasyonlar gerçek bir kelime
+    // değildir (örn. "iptval", "iptvx", "iptvz"). Google Play'in yazım hatası toleransı yüzünden
+    // bu tür kelimeler de yüksek sonuç sayısı dönebiliyor, totalResults güvenilir bir sinyal değil.
+    if (words.length === 1) {
+      const w = lower[0]
+      if (w.startsWith('iptv') && w !== 'iptv') {
+        const suffix = w.slice(4) // "iptv" sonrası kalan kısım
+        const isKnownTerm = RELEVANT_ROOTS.some(root => suffix.includes(root) || root.includes(suffix))
+        if (suffix.length > 0 && suffix.length <= 3 && !isKnownTerm) return true
+      }
+    }
+
     return false
   }
 
