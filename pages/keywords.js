@@ -20,7 +20,7 @@ export default function Keywords() {
     setLoading(true)
     setResults(null)
     try {
-      const url = `/api/keywords?q=${encodeURIComponent(keyword)}&appId=${encodeURIComponent(appId)}&num=50`
+      const url = `/api/keywords?q=${encodeURIComponent(keyword)}&appId=${encodeURIComponent(appId)}&num=100`
       const r = await fetch(url)
       const d = await r.json()
       if (d.error) { alert(d.error); return }

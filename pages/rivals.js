@@ -140,7 +140,7 @@ export default function Rivals() {
               {/* Açıklama */}
               <div className="card">
                 <div className="card-title">Açıklama Metni</div>
-                <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: 400, overflowY: 'auto', paddingRight: 8 }}>
                   {selected.description}
                 </p>
               </div>

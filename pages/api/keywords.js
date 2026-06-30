@@ -3,7 +3,7 @@ import gplay from 'google-play-scraper'
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end()
 
-  const { q, appId, country = 'tr', lang = 'tr', num = 50 } = req.query
+  const { q, appId, country = 'tr', lang = 'tr', num = 100 } = req.query
   if (!q) return res.status(400).json({ error: 'q parametresi zorunlu' })
 
   try {
@@ -11,7 +11,7 @@ export default async function handler(req, res) {
       term: q,
       country,
       lang,
-      num: parseInt(num),
+      num: Math.min(parseInt(num), 100), // google-play-scraper search() pratikte ~100 üstünü desteklemiyor
       fullDetail: false,
     })
 

@@ -42,7 +42,9 @@ Deploy tamamlandığında sana `https://aso-tool-xxx.vercel.app` gibi bir URL ve
 ## Notlar
 
 - `google-play-scraper` Play Store'a istek atar, Türkiye için `gl=tr&hl=tr` parametreleri kullanılır
-- Vercel free plan: Serverless functions 10 saniye timeout — scraper genelde 2-5 saniyede döner, yeterli
+- Vercel free plan: Serverless functions 10 saniye timeout — tekli keyword/rakip/yorum istekleri 2-5 saniyede döner, sorun yok
+- **Çoklu Ülke Tarama** özelliği birden fazla ülkeyi paralel tarar; `vercel.json`'da `maxDuration: 60` tanımlı ama bu **sadece Vercel Pro planında** geçerlidir. Free (Hobby) planda hâlâ 10 saniye sınırı var. Bu yüzden sayfada aynı anda 5-8 ülkeyi geçmemeni öneririz (Quick Set butonları zaten bu aralıkta tutuyor). 10'dan fazla ülke seçersen sayfa seni uyarır.
+- Eğer sık sık 15-20+ ülke taramak istersen iki seçenek var: (1) Vercel Pro'ya geç ($20/ay), (2) taramayı 2-3 gruba bölüp ayrı ayrı çalıştır (Quick Set butonları zaten bunun için var: Avrupa, Orta Doğu, Amerika, Asya)
 - Veri localStorage'da tutulur (package name, rakip listesi, keyword geçmişi)
 - Rate limit: Kişisel kullanım için sorun olmaz. Çok fazla istek atarsan Google geçici IP block uygulayabilir.
 

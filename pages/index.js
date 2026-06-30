@@ -125,8 +125,8 @@ export default function Dashboard() {
 
           {/* Description */}
           <div className="card">
-            <div className="card-title">Açıklama (İlk 800 karakter)</div>
-            <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+            <div className="card-title">Açıklama (Tam Metin)</div>
+            <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: 400, overflowY: 'auto', paddingRight: 8 }}>
               {appInfo.description}
             </p>
           </div>

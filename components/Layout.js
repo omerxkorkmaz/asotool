@@ -4,6 +4,7 @@ import { useRouter } from 'next/router'
 const NAV = [
   { id: '/',          label: 'Dashboard',       icon: '▦' },
   { id: '/keywords',  label: 'Keyword Tracker', icon: '⌕' },
+  { id: '/multi-country', label: 'Çoklu Ülke Tarama', icon: '⊕' },
   { id: '/rivals',    label: 'Rakip Analizi',   icon: '⊙' },
   { id: '/reviews',   label: 'Yorum Madencisi', icon: '✦' },
   { id: '/category',  label: 'Kategori Radar',  icon: '◈' },

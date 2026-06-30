@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "pages/api/multi-country.js": {
+      "maxDuration": 60
+    }
+  }
+}
