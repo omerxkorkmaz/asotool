@@ -8,10 +8,12 @@
     "start": "next start"
   },
   "dependencies": {
+    "google-play-scraper": "^9.2.0",
     "next": "14.2.3",
     "react": "^18",
     "react-dom": "^18",
-    "google-play-scraper": "^9.1.0",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "@upstash/redis": "^1.34.3",
+    "@google/genai": "^1.0.0"
   }
 }

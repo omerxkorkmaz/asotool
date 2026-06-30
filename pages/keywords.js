@@ -7,13 +7,40 @@ export default function Keywords() {
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(false)
   const [history, setHistory] = useState([])
+  const [tracking, setTracking] = useState(false)
+  const [trackedList, setTrackedList] = useState([])
 
   useEffect(() => {
     const saved = localStorage.getItem('myAppId') || ''
     setAppId(saved)
     const h = JSON.parse(localStorage.getItem('kwHistory') || '[]')
     setHistory(h)
+    if (saved) loadTracked(saved)
   }, [])
+
+  async function loadTracked(id) {
+    try {
+      const r = await fetch(`/api/tracked?appId=${encodeURIComponent(id)}`)
+      const d = await r.json()
+      if (!d.error) setTrackedList(d.tracked.map(t => t.keyword))
+    } catch (e) { /* redis kurulu değilse sessizce geç */ }
+  }
+
+  async function toggleTrack() {
+    if (!appId || !keyword) return
+    setTracking(true)
+    try {
+      const isTracked = trackedList.includes(keyword)
+      const r = await fetch('/api/tracked', {
+        method: isTracked ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appId, keyword })
+      })
+      const d = await r.json()
+      if (d.error) { alert(d.error); return }
+      setTrackedList(d.tracked.map(t => t.keyword))
+    } finally { setTracking(false) }
+  }
 
   async function search() {
     if (!keyword.trim()) return
@@ -25,6 +52,7 @@ export default function Keywords() {
       const d = await r.json()
       if (d.error) { alert(d.error); return }
       setResults(d)
+      if (appId) loadTracked(appId)
 
       // Geçmişe kaydet
       const entry = { keyword, myRank: d.myRank, date: new Date().toISOString() }
@@ -73,12 +101,20 @@ export default function Keywords() {
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div className="card-title" style={{ marginBottom: 0 }}>"{results.keyword}" — {results.total} sonuç</div>
-            {results.myRank
-              ? <span className={`rank ${results.myRank === 1 ? 'rank-1' : results.myRank <= 10 ? 'rank-top10' : 'rank-top50'}`}>
-                  Senin sıran: #{results.myRank}
-                </span>
-              : appId && <span className="rank rank-none">İlk {results.total}'de yok</span>
-            }
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              {results.myRank
+                ? <span className={`rank ${results.myRank === 1 ? 'rank-1' : results.myRank <= 10 ? 'rank-top10' : 'rank-top50'}`}>
+                    Senin sıran: #{results.myRank}
+                  </span>
+                : appId && <span className="rank rank-none">İlk {results.total}'de yok</span>
+              }
+              {appId && (
+                <button className="btn btn-ghost" style={{ fontSize: 11, padding: '5px 10px' }}
+                  onClick={toggleTrack} disabled={tracking}>
+                  {tracking ? <span className="spinner" /> : trackedList.includes(results.keyword) ? '✓ Takipte' : '+ Günlük Takip Et'}
+                </button>
+              )}
+            </div>
           </div>
           <div className="table-wrap">
             <table>
