@@ -28,14 +28,47 @@ function todayDate(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+/** Android: google-play-scraper max 250. iOS: up to 800. */
+function getKeywordSearchDepth(platform: Platform): number {
+  const requested = parseInt(process.env.KEYWORD_SEARCH_DEPTH || '250', 10) || 250
+  const cap = platform === 'android' ? 250 : 800
+  return Math.min(Math.max(requested, 1), cap)
+}
+
 export function parseInstallsRange(range: string): { min: number; max: number } {
-  const normalized = range.trim()
+  const normalized = range.replace(/,/g, '').trim()
   if (INSTALLS_MAP[normalized]) return INSTALLS_MAP[normalized]
 
   const withPlus = normalized.endsWith('+') ? normalized : `${normalized}+`
   if (INSTALLS_MAP[withPlus]) return INSTALLS_MAP[withPlus]
 
+  const numericMatch = normalized.match(/^(\d+(?:\.\d+)?)([KMB])?\+?$/i)
+  if (numericMatch) {
+    let n = parseFloat(numericMatch[1])
+    const suffix = (numericMatch[2] || '').toUpperCase()
+    if (suffix === 'K') n *= 1000
+    else if (suffix === 'M') n *= 1_000_000
+    else if (suffix === 'B') n *= 1_000_000_000
+
+    const tiers = Object.values(INSTALLS_MAP).sort((a, b) => a.min - b.min)
+    for (let i = tiers.length - 1; i >= 0; i--) {
+      if (n >= tiers[i].min) return tiers[i]
+    }
+  }
+
   return { min: 0, max: 0 }
+}
+
+function resolveInstallBounds(
+  installsRange: string,
+  installsMin?: number,
+  installsMax?: number
+): { min: number; max: number } {
+  const parsed = parseInstallsRange(installsRange)
+  return {
+    min: parsed.min || installsMin || 0,
+    max: parsed.max || installsMax || 0,
+  }
 }
 
 export async function logDailyMetrics(
@@ -46,19 +79,23 @@ export async function logDailyMetrics(
     const adapter = getStoreAdapter(platform)
     const result = await adapter.getApp(appId)
 
-    const { min, max } = parseInstallsRange(result.installs)
+    const { min, max } = resolveInstallBounds(
+      result.installs,
+      result.installsMin,
+      result.installsMax
+    )
 
     const { error } = await supabase.from('apps_daily_metrics').upsert(
       {
         app_id: appId,
         platform,
         date: todayDate(),
-        rating: result.score,
-        rating_count: result.ratings,
+        rating: result.score ?? null,
+        rating_count: result.ratings ?? null,
         installs_range: result.installs,
-        installs_min: min,
-        installs_max: max,
-        review_count: result.reviews,
+        installs_min: min || null,
+        installs_max: max || null,
+        review_count: result.reviews ?? null,
         title: result.title,
         short_description: result.summary,
         version: result.version,
@@ -86,7 +123,8 @@ export async function logKeywordRanking(
 ): Promise<{ success: boolean; rank: number | null; error?: string }> {
   try {
     const adapter = getStoreAdapter(platform)
-    const results = await adapter.search(keyword, 50)
+    const searchDepth = getKeywordSearchDepth(platform)
+    const results = await adapter.search(keyword, searchDepth)
 
     const position = results.findIndex((r) => r.appId === appId)
     const rank = position === -1 ? null : position + 1

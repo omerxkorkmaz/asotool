@@ -10,6 +10,8 @@ export const googlePlayAdapter: StoreAdapter = {
       summary: result.summary,
       description: result.description,
       installs: result.installs,
+      installsMin: result.minInstalls,
+      installsMax: result.maxInstalls,
       score: result.score,
       ratings: result.ratings,
       reviews: result.reviews,

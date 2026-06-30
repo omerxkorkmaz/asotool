@@ -4,6 +4,8 @@ export interface AppBasicInfo {
   summary: string
   description: string
   installs: string
+  installsMin?: number
+  installsMax?: number
   score: number
   ratings: number
   reviews: number
