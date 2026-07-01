@@ -37,6 +37,31 @@ export function formatGeminiError(err: unknown): string {
   return message
 }
 
+export function parseGeminiJsonText<T>(raw: string): T {
+  let text = raw.trim()
+  if (!text) throw new Error('Gemini boş yanıt döndürdü')
+
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fenced) text = fenced[1].trim()
+
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error('Gemini yanıtında JSON nesnesi bulunamadı')
+  }
+
+  let jsonStr = text.slice(start, end + 1)
+  jsonStr = jsonStr.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'")
+  jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1')
+
+  try {
+    return JSON.parse(jsonStr) as T
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`Gemini JSON parse hatası: ${message}`)
+  }
+}
+
 export async function geminiJson<T>(prompt: string, systemInstruction?: string): Promise<T | null> {
   const ai = getGeminiClient()
   if (!ai) return null
@@ -50,7 +75,7 @@ export async function geminiJson<T>(prompt: string, systemInstruction?: string):
         ...(systemInstruction ? { systemInstruction } : {}),
       },
     })
-    return JSON.parse(response.text ?? '{}') as T
+    return parseGeminiJsonText<T>(response.text ?? '{}')
   } catch (err) {
     console.error('[gemini]', err)
     return null
