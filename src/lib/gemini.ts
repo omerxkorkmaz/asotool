@@ -37,29 +37,79 @@ export function formatGeminiError(err: unknown): string {
   return message
 }
 
-export function parseGeminiJsonText<T>(raw: string): T {
-  let text = raw.trim()
-  if (!text) throw new Error('Gemini boş yanıt döndürdü')
+function normalizeJsonCandidate(raw: string): string {
+  let jsonStr = raw.trim()
+  jsonStr = jsonStr.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'")
+  jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1')
+  return jsonStr
+}
 
+function repairTruncatedJson(jsonStr: string): string {
+  let s = jsonStr.trim().replace(/,\s*$/, '')
+
+  const stack: string[] = []
+  let inString = false
+  let escape = false
+
+  for (const ch of s) {
+    if (escape) {
+      escape = false
+      continue
+    }
+    if (ch === '\\') {
+      escape = true
+      continue
+    }
+    if (ch === '"') {
+      inString = !inString
+      continue
+    }
+    if (inString) continue
+    if (ch === '{') stack.push('}')
+    else if (ch === '[') stack.push(']')
+    else if (ch === '}' || ch === ']') stack.pop()
+  }
+
+  if (inString) s += '"'
+  while (stack.length) s += stack.pop()
+  return s
+}
+
+function extractJsonObject(text: string): string {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  if (fenced) text = fenced[1].trim()
+  if (fenced) return fenced[1].trim()
+
+  const trimmed = text.trim()
+  if (trimmed.startsWith('{')) return trimmed
 
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start === -1 || end === -1 || end <= start) {
     throw new Error('Gemini yanıtında JSON nesnesi bulunamadı')
   }
+  return text.slice(start, end + 1)
+}
 
-  let jsonStr = text.slice(start, end + 1)
-  jsonStr = jsonStr.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'")
-  jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1')
+export function parseGeminiJsonText<T>(raw: string): T {
+  const text = raw.trim()
+  if (!text) throw new Error('Gemini boş yanıt döndürdü')
 
-  try {
-    return JSON.parse(jsonStr) as T
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    throw new Error(`Gemini JSON parse hatası: ${message}`)
+  const candidates = [
+    text,
+    extractJsonObject(text),
+    repairTruncatedJson(extractJsonObject(text)),
+  ]
+
+  let lastError = 'bilinmeyen hata'
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(normalizeJsonCandidate(candidate)) as T
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err)
+    }
   }
+
+  throw new Error(`Gemini JSON parse hatası: ${lastError}`)
 }
 
 export async function geminiJson<T>(prompt: string, systemInstruction?: string): Promise<T | null> {
