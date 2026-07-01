@@ -8,7 +8,7 @@ const youtube = google.youtube({
 
 export async function scanYouTubePresence(
   appName: string,
-  maxResults: number = 10
+  maxResults: number = 25
 ): Promise<YouTubePresence | null> {
   try {
     if (!process.env.YOUTUBE_API_KEY) {
@@ -18,7 +18,7 @@ export async function scanYouTubePresence(
 
     const searchResponse = await youtube.search.list({
       part: ['snippet'],
-      q: `${appName} app review OR tutorial OR guide`,
+      q: `"${appName}"`,
       type: ['video'],
       maxResults,
       order: 'relevance',

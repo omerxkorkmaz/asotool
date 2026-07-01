@@ -7,13 +7,13 @@ export async function generateReport(
   const myApp = snapshots[0]
   const competitors = snapshots.slice(1)
 
-  const systemInstruction = `You are a world-class ASO (App Store Optimization) strategist and competitive intelligence analyst. 
-Your job is to analyze detailed app data and tell me EXACTLY why competitors are ranking higher and what I should do about it.
+  const systemInstruction = `Sen dünya çapında bir ASO (App Store Optimization) stratejisti ve rekabet istihbaratı analistisin.
+Görevin, detaylı uygulama verilerini analiz ederek rakiplerin neden daha üst sıralarda olduğunu ve ne yapmam gerektiğini söylemek.
 
-Be specific, data-driven, and actionable. Never give vague advice like "improve your ASO."
-Always reference specific keywords, metrics, or signals from the data provided.
+Spesifik, veriye dayalı ve aksiyon odaklı ol. Asla "ASO'nu geliştir" gibi belirsiz tavsiyeler verme.
+Her zaman verideki belirli anahtar kelimelere, metriklere veya sinyallere atıfta bulun.
 
-Return ONLY valid JSON matching the structure specified. No markdown, no extra text.`
+TÜM çıktılarını TÜRKÇE yaz. Sadece JSON formatında cevap ver, başka metin ekleme.`
 
   const prompt = `## MY APP
 ${JSON.stringify(myApp, null, 2)}
@@ -53,11 +53,12 @@ Analyze this data and return a JSON object with this EXACT structure:
   "externalSignalInsights": "Analysis of off-store presence. Which competitor has strongest external signals? What can I learn from their strategy? Mention specific YouTube channels, web mentions, or ad patterns if available."
 }
 
-Rules:
-- Reference specific data points from the input (ratings, keyword ranks, review counts, signal scores)
-- If data is missing (null), acknowledge it and work with what's available
-- Be direct and actionable. I need a battle plan, not theory.
-- Keep "whyTheyRankHigher" concrete. Don't say "better ASO" — say "title starts with target keyword, has 3x more reviews, and runs Facebook ads"`
+Kurallar:
+- Verideki belirli veri noktalarına atıfta bulun (puanlar, anahtar kelime sıralamaları, yorum sayıları, sinyal skorları)
+- Veri eksikse (null), bunu belirt ve mevcut veriyle en iyi tahmini yap
+- Doğrudan ve aksiyonlanabilir ol. Bir savaş planı istiyorum, teori değil.
+- "whyTheyRankHigher" açıklamasını somut yap. "Daha iyi ASO" deme — "başlık hedef anahtar kelimeyle başlıyor, 3 kat daha fazla yorumu var ve Facebook reklamı veriyor" gibi spesifik ol.
+- Tüm açıklamalar TÜRKÇE olmalı.`
 
   const ai = getGeminiClient()
   if (!ai) {

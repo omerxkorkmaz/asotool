@@ -6,20 +6,20 @@ export async function scanWebMentions(
   developerName: string
 ): Promise<WebMention[]> {
   try {
-    const prompt = `Search the web for mentions of the mobile app "${appName}" by "${developerName}".
-Find reviews, news articles, "best of" lists, tutorials, forum discussions.
+    const prompt = `"${appName}" uygulaması (geliştirici: ${developerName}) hakkında web'de bahseden kaynakları ara.
+İncelemeler, haber makaleleri, "en iyi" listeleri, eğitim videoları, forum tartışmaları (Reddit, X vb.) bul.
 
-Return ONLY a valid JSON array. Each object must have:
-- source: string
-- title: string
-- url: string (empty if not found)
+SADECE geçerli bir JSON dizisi döndür. Her nesne şu anahtarlara sahip olmalı:
+- source: string (web sitesi/yayın adı)
+- title: string (başlık veya gönderi başlığı)
+- url: string (bulunursa tam URL, yoksa boş string)
 - type: "review" | "news" | "list" | "tutorial" | "forum" | "other"
 - relevance: "high" | "medium" | "low"
-- date: string (ISO date or empty)
-- snippet: string (1-2 sentences)
+- date: string (biliniyorsa ISO tarih, yoksa boş string)
+- snippet: string (1-2 cümlelik alıntı, TÜRKÇE özetle)
 
-Max 10 mentions. If none found, return [].
-No text outside the JSON array.`
+En fazla 10 bahis bul. Hiç bahis yoksa boş dizi [] döndür.
+JSON dizisinin dışında hiçbir metin ekleme.`
 
     const ai = getGeminiClient()
     if (!ai) return []
