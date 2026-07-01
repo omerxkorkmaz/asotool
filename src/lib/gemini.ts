@@ -3,13 +3,95 @@ import { GoogleGenAI } from '@google/genai'
 /** Varsayılan model. GEMINI_MODEL ile override edilebilir. */
 const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash'
 
+const MODEL_FALLBACK_CHAIN = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'] as const
+
 export function getGeminiModel(): string {
   return process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
 }
 
-/** Deep Report için ayrı model (varsayılan: GEMINI_MODEL — Pro free tier'da kotası 0). */
+/** Deep Report için ayrı model (varsayılan: GEMINI_MODEL). */
 export function getGeminiDeepReportModel(): string {
   return process.env.GEMINI_DEEP_REPORT_MODEL?.trim() || getGeminiModel()
+}
+
+/** Yoğunluk/kota durumunda denenecek modeller (birincil + yedekler). */
+export function getGeminiModelCandidates(preferred?: string): string[] {
+  const primary = preferred?.trim() || getGeminiModel()
+  const envFallback = process.env.GEMINI_FALLBACK_MODEL?.trim()
+  const chain: string[] = []
+
+  for (const model of [primary, envFallback, ...MODEL_FALLBACK_CHAIN]) {
+    if (model && !chain.includes(model)) chain.push(model)
+  }
+  return chain
+}
+
+export function isGeminiTransientError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err)
+  const status = (err as { status?: number })?.status
+  return (
+    status === 503 ||
+    status === 429 ||
+    message.includes('"code":503') ||
+    message.includes('"code":429') ||
+    message.includes('503') ||
+    message.includes('429') ||
+    message.includes('UNAVAILABLE') ||
+    message.includes('high demand') ||
+    message.includes('RESOURCE_EXHAUSTED') ||
+    message.includes('quota')
+  )
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export interface GenerateGeminiContentParams {
+  models?: string[]
+  contents: string
+  config?: Record<string, unknown>
+  maxRetriesPerModel?: number
+}
+
+/** Geçici hatalarda bekleme + alternatif model ile Gemini çağrısı. */
+export async function generateGeminiContent(
+  params: GenerateGeminiContentParams
+): Promise<{ text: string; model: string }> {
+  const ai = getGeminiClient()
+  if (!ai) {
+    throw new Error('GEMINI_API_KEY tanımlı değil. Vercel Production ortamına ekleyip redeploy edin.')
+  }
+
+  const models = params.models ?? getGeminiModelCandidates()
+  const maxRetries = params.maxRetriesPerModel ?? 2
+  let lastError: unknown
+
+  for (const model of models) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          const delayMs = 2000 * attempt
+          console.warn(`[gemini] ${model} yeniden deneniyor (${attempt + 1}/${maxRetries + 1}) — ${delayMs}ms bekleniyor`)
+          await sleep(delayMs)
+        }
+
+        const response = await ai.models.generateContent({
+          model,
+          contents: params.contents,
+          config: params.config,
+        })
+
+        return { text: response.text || '{}', model }
+      } catch (err) {
+        lastError = err
+        if (!isGeminiTransientError(err)) throw err
+        console.warn(`[gemini] ${model} geçici hata:`, err instanceof Error ? err.message : err)
+      }
+    }
+  }
+
+  throw lastError
 }
 
 /** @deprecated getGeminiModel() kullanın */
@@ -23,11 +105,21 @@ export function getGeminiClient(): GoogleGenAI | null {
 
 export function formatGeminiError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err)
+  if (
+    message.includes('503') ||
+    message.includes('UNAVAILABLE') ||
+    message.includes('high demand')
+  ) {
+    return (
+      'Gemini API şu an yoğun (503). Bu Google tarafında geçici bir durum — 1-2 dakika bekleyip tekrar deneyin. ' +
+      'Sorun sürerse Vercel\'de GEMINI_FALLBACK_MODEL=gemini-2.5-flash ekleyin.'
+    )
+  }
   if (message.includes('429') || message.includes('RESOURCE_EXHAUSTED') || message.includes('quota')) {
     const model = message.match(/model: ([^\s\\n]+)/)?.[1] || getGeminiModel()
     return (
       `Gemini API kotası doldu (model: ${model}). ` +
-      `Vercel'de GEMINI_MODEL ayarını kontrol edin (ör. gemini-3.5-flash) ve redeploy edin. ` +
+      `Vercel'de GEMINI_MODEL ayarını kontrol edin ve redeploy edin. ` +
       `Kullanım: https://ai.dev/rate-limit`
     )
   }

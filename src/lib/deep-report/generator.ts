@@ -1,8 +1,9 @@
 import type { AppSnapshot, DeepReport } from './types'
 import {
   formatGeminiError,
-  getGeminiClient,
+  generateGeminiContent,
   getGeminiDeepReportModel,
+  getGeminiModelCandidates,
   parseGeminiJsonText,
 } from '@/lib/gemini'
 
@@ -88,64 +89,60 @@ ${lengthRule}
 - JSON dışında metin yazma.`
 }
 
-async function callGemini(
+async function fetchAnalysisText(
   snapshots: AppSnapshot[],
-  options: { compact?: boolean; structuredJson?: boolean } = {}
+  compact: boolean,
+  structuredJson: boolean
 ): Promise<string> {
-  const ai = getGeminiClient()
-  if (!ai) {
-    throw new Error('GEMINI_API_KEY tanımlı değil. Vercel Production ortamına ekleyip redeploy edin.')
-  }
+  const { text, model } = await generateGeminiContent({
+    models: getGeminiModelCandidates(getGeminiDeepReportModel()),
+    contents: buildPrompt(snapshots, compact),
+    config: {
+      systemInstruction: SYSTEM_INSTRUCTION,
+      temperature: compact ? 0.1 : 0.2,
+      topP: 0.9,
+      maxOutputTokens: 8192,
+      ...(structuredJson ? { responseMimeType: 'application/json' as const } : {}),
+    },
+    maxRetriesPerModel: 2,
+  })
 
-  const { compact = false, structuredJson = true } = options
+  console.log(`[deep-report] Gemini yanıtı alındı (model: ${model}, compact: ${compact})`)
+  return text
+}
 
-  try {
-    const response = await ai.models.generateContent({
-      model: getGeminiDeepReportModel(),
-      contents: buildPrompt(snapshots, compact),
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: compact ? 0.1 : 0.2,
-        topP: 0.9,
-        maxOutputTokens: 8192,
-        ...(structuredJson ? { responseMimeType: 'application/json' as const } : {}),
-      },
-    })
-
-    return response.text || '{}'
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    const isJsonError =
-      message.includes('JSON') ||
-      message.includes('position') ||
-      message.includes("Expected ','")
-
-    if (structuredJson && isJsonError) {
-      console.warn('[deep-report] Structured JSON modu başarısız, düz metin moduna geçiliyor')
-      return callGemini(snapshots, { ...options, structuredJson: false })
-    }
-    throw err
-  }
+function parseAnalysisText(text: string, snapshots: AppSnapshot[]): Analysis {
+  const parsed = parseGeminiJsonText<Partial<Analysis>>(text)
+  return normalizeAnalysis(parsed, snapshots)
 }
 
 export async function generateReport(snapshots: AppSnapshot[]): Promise<Analysis> {
-  const attempts: Array<{ compact: boolean; structuredJson: boolean }> = [
-    { compact: false, structuredJson: true },
-    { compact: true, structuredJson: true },
-    { compact: true, structuredJson: false },
-  ]
-
   let lastError: unknown
 
-  for (const attempt of attempts) {
-    try {
-      const text = await callGemini(snapshots, attempt)
-      const parsed = parseGeminiJsonText<Partial<Analysis>>(text)
-      return normalizeAnalysis(parsed, snapshots)
-    } catch (err) {
-      lastError = err
-      console.warn('[deep-report] Analiz denemesi başarısız:', err)
-    }
+  // 1) Tam rapor + yapılandırılmış JSON
+  try {
+    const text = await fetchAnalysisText(snapshots, false, true)
+    return parseAnalysisText(text, snapshots)
+  } catch (err) {
+    lastError = err
+    console.warn('[deep-report] Tam analiz başarısız:', err instanceof Error ? err.message : err)
+  }
+
+  // 2) Kısa rapor + yapılandırılmış JSON (yalnızca parse/API hatası — 503 zaten generateGeminiContent içinde yedeklendi)
+  try {
+    const text = await fetchAnalysisText(snapshots, true, true)
+    return parseAnalysisText(text, snapshots)
+  } catch (err) {
+    lastError = err
+    console.warn('[deep-report] Kısa analiz başarısız:', err instanceof Error ? err.message : err)
+  }
+
+  // 3) Kısa rapor, düz metin JSON (son çare)
+  try {
+    const text = await fetchAnalysisText(snapshots, true, false)
+    return parseAnalysisText(text, snapshots)
+  } catch (err) {
+    lastError = err
   }
 
   throw new Error(formatGeminiError(lastError))
