@@ -1,7 +1,5 @@
-import { GoogleGenAI } from '@google/genai'
 import type { WebMention } from './types'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
+import { getGeminiClient, getGeminiModel } from '@/lib/gemini'
 
 export async function scanWebMentions(
   appName: string,
@@ -23,8 +21,11 @@ Return ONLY a valid JSON array. Each object must have:
 Max 10 mentions. If none found, return [].
 No text outside the JSON array.`
 
+    const ai = getGeminiClient()
+    if (!ai) return []
+
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: getGeminiModel(),
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         tools: [{ googleSearch: {} }],

@@ -1,7 +1,5 @@
-import { GoogleGenAI } from '@google/genai'
 import type { AppSnapshot, DeepReport } from './types'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
+import { formatGeminiError, getGeminiClient, getGeminiDeepReportModel } from '@/lib/gemini'
 
 export async function generateReport(
   snapshots: AppSnapshot[]
@@ -61,21 +59,32 @@ Rules:
 - Be direct and actionable. I need a battle plan, not theory.
 - Keep "whyTheyRankHigher" concrete. Don't say "better ASO" — say "title starts with target keyword, has 3x more reviews, and runs Facebook ads"`
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-pro',
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    config: {
-      systemInstruction,
-      temperature: 0.3,
-      topP: 0.9,
-      maxOutputTokens: 4096,
-    },
-  })
+  const ai = getGeminiClient()
+  if (!ai) {
+    throw new Error('GEMINI_API_KEY tanımlı değil. Vercel Production ortamına ekleyip redeploy edin.')
+  }
 
-  const text = response.text || '{}'
+  const model = getGeminiDeepReportModel()
 
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('Failed to parse Gemini response as JSON')
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        systemInstruction,
+        temperature: 0.3,
+        topP: 0.9,
+        maxOutputTokens: 4096,
+      },
+    })
 
-  return JSON.parse(jsonMatch[0])
+    const text = response.text || '{}'
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) throw new Error('Failed to parse Gemini response as JSON')
+
+    return JSON.parse(jsonMatch[0])
+  } catch (err) {
+    throw new Error(formatGeminiError(err))
+  }
 }
