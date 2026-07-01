@@ -12,6 +12,51 @@ function tokenize(text: string): string[] {
     .filter((w) => w.length > 2)
 }
 
+function parseInstallsMin(range: string): number {
+  if (!range) return 0;
+
+  // Normalize: remove commas, trim whitespace
+  const normalized = range.replace(/,/g, '').trim();
+
+  const map: Record<string, number> = {
+    '0+': 0, '1+': 1, '5+': 5, '10+': 10, '50+': 50, '100+': 100,
+    '500+': 500,
+    '1K+': 1000, '1000+': 1000,
+    '5K+': 5000, '5000+': 5000,
+    '10K+': 10000, '10000+': 10000,
+    '50K+': 50000, '50000+': 50000,
+    '100K+': 100000, '100000+': 100000,
+    '500K+': 500000, '500000+': 500000,
+    '1M+': 1000000, '5M+': 5000000, '10M+': 10000000,
+    '50M+': 50000000, '100M+': 100000000, '500M+': 500000000,
+    '1B+': 1000000000,
+  };
+
+  // Direct match first
+  if (map[normalized]) return map[normalized];
+
+  // Try matching without "+" suffix
+  const withoutPlus = normalized.replace(/\+$/, '');
+  const numericValue = parseInt(withoutPlus, 10);
+  if (!isNaN(numericValue)) return numericValue;
+
+  // Fuzzy match: check if any known range is contained
+  for (const [key, value] of Object.entries(map)) {
+    if (normalized.includes(key.replace(/\+$/, '')) || key.includes(normalized.replace(/\+$/, ''))) {
+      return value;
+    }
+  }
+
+  return 0;
+}
+
+function formatInstalls(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return n.toString();
+}
+
 export interface HealthScoreInput {
   app: PlayAppDetail
   bulkScanResults?: BulkScanResult[]
@@ -71,20 +116,25 @@ function scoreKeywordCoverage(
     }
   }
 
-  const keywords = targetKeywords.length ? targetKeywords : tokenize(`${app.genre || ''} ${app.title}`).slice(0, 6)
+  // Fallback: No Bulk Scan data
+  const keywords = targetKeywords.length > 0
+    ? targetKeywords
+    : tokenize(`${app.genre || ''} ${app.title}`).slice(0, 6);
+
+  const source = targetKeywords.length > 0 ? 'hedef' : 'tahmini';
   const covered = keywords.filter(
     (k) =>
-      titleLower.includes(k) || summaryLower.includes(k) || descLead.includes(k.toLowerCase())
-  ).length
-  const coverageRatio = keywords.length ? covered / keywords.length : 0
+      titleLower.includes(k.toLowerCase()) || summaryLower.includes(k.toLowerCase()) || descLead.includes(k.toLowerCase())
+  ).length;
+  const coverageRatio = keywords.length ? covered / keywords.length : 0;
   const metaBonus =
-    meta.keywordsInTitle.length * 8 + meta.keywordsInSummary.length * 5 + meta.keywordsInDescriptionLead.length * 3
-  const score = clamp(coverageRatio * 55 + Math.min(metaBonus, 35))
+    meta.keywordsInTitle.length * 8 + meta.keywordsInSummary.length * 5 + meta.keywordsInDescriptionLead.length * 3;
+  const score = clamp(coverageRatio * 55 + Math.min(metaBonus, 35));
 
   return {
     score,
-    explanation: `${keywords.length} hedef kelimeden ${covered} tanesi metadata'da. Bulk Scan ile kesinleşir.`,
-  }
+    explanation: `${keywords.length} ${source} kelimeden ${covered} tanesi metadata'da${targetKeywords.length === 0 ? ' (hedef kelime ekleyin)' : ''}. Bulk Scan ile kesinleşir.`,
+  };
 }
 
 function scoreTitleMetadata(meta: MetadataQualitySignals): { score: number; explanation: string } {
@@ -176,10 +226,20 @@ function scoreCompetitorPositioning(
     else if (effectiveRank && effectiveRank <= 30) score += 8
     else score += 0
 
+    // Installs comparison (parse installs ranges)
+    const myInstalls = parseInstallsMin(app.installs || '0');
+    const competitorInstalls = top10.map(a => parseInstallsMin(a.installs || '0'));
+    const avgInstalls = competitorInstalls.reduce((s, i) => s + i, 0) / competitorInstalls.length;
+
+    if (myInstalls >= avgInstalls * 2) score += 12;
+    else if (myInstalls >= avgInstalls) score += 6;
+    else if (myInstalls >= avgInstalls * 0.3) score += 2;
+    else score -= 4;
+
     return {
       score: clamp(score),
       explanation: effectiveRank
-        ? `Genre aramasında #${effectiveRank}. Rakip ort. ${avgScore.toFixed(1)}★ / ${Math.round(avgRatings).toLocaleString('tr-TR')} rating. Sen: ${myScore.toFixed(1)}★.`
+        ? `Genre aramasında #${effectiveRank}. Rakip ort. ${avgScore.toFixed(1)}★, ${Math.round(avgRatings).toLocaleString('tr-TR')} rating, ${formatInstalls(avgInstalls)} indirme. Sen: ${myScore.toFixed(1)}★, ${app.installs || 'bilinmiyor'}.`
         : `Genre ilk 50'de görünmüyorsun. Rakip ort. ${avgScore.toFixed(1)}★.`,
     }
   }
@@ -200,21 +260,88 @@ function overlayScore(myScore: number): number {
   return 5
 }
 
-function scoreOpportunityAverage(bulkScans: BulkScanResult[]): { score: number; explanation: string } {
-  const latest = bulkScans[0]
-  if (!latest?.keywords?.length) {
-    return { score: 38, explanation: 'Bulk scan yok — fırsat skoru tahmini düşük güvenilirlikte.' }
+function scoreOpportunityAverage(
+  bulkScans: BulkScanResult[],
+  meta: MetadataQualitySignals,
+  targetKeywords: string[],
+  app: PlayAppDetail,
+  genreResults: PlaySearchResult[]
+): { score: number; explanation: string } {
+  const latest = bulkScans[0];
+
+  // If we have Bulk Scan data, use it (most accurate)
+  if (latest?.keywords?.length) {
+    const avg = latest.keywords.reduce((s, k) => s + k.opportunityScore, 0) / latest.keywords.length;
+    const highOpp = latest.keywords.filter((k) => k.opportunityScore >= 65).length;
+    const unranked = latest.keywords.filter((k) => k.relevanceToApp < 40).length;
+    let score = avg;
+    if (highOpp >= 3) score += 8;
+    if (unranked > latest.keywords.length / 2) score -= 10;
+    return {
+      score: clamp(score),
+      explanation: `Ort. fırsat ${Math.round(avg)}/100. ${highOpp} yüksek fırsat (≥65). ${unranked} kelimede zayıf görünürlük.`,
+    };
   }
-  const avg = latest.keywords.reduce((s, k) => s + k.opportunityScore, 0) / latest.keywords.length
-  const highOpp = latest.keywords.filter((k) => k.opportunityScore >= 65).length
-  const unranked = latest.keywords.filter((k) => k.relevanceToApp < 40).length
-  let score = avg
-  if (highOpp >= 3) score += 8
-  if (unranked > latest.keywords.length / 2) score -= 10
+
+  // No Bulk Scan — calculate from available data
+  let score = 50; // neutral starting point
+  const reasons: string[] = [];
+
+  // Factor 1: Missing high-value keywords (fewer missing = better)
+  const missingCount = meta.missingHighValueKeywords?.length || 0;
+  if (missingCount === 0) {
+    score += 15;
+    reasons.push('tüm yüksek değerli kelimeler metadata\'da');
+  } else if (missingCount <= 2) {
+    score += 5;
+    reasons.push(`${missingCount} yüksek değerli kelime eksik`);
+  } else {
+    score -= 10;
+    reasons.push(`${missingCount} yüksek değerli kelime metadata'da yok`);
+  }
+
+  // Factor 2: Rating comparison with competitors
+  if (genreResults.length > 0) {
+    const top10 = genreResults.slice(0, 10);
+    const avgRating = top10.reduce((s, a) => s + (a.score ?? 0), 0) / top10.length;
+    const myRating = app.score ?? 0;
+
+    if (myRating >= avgRating) {
+      score += 10;
+      reasons.push(`puanın rakip ortalamasının üstünde (${myRating.toFixed(1)} vs ${avgRating.toFixed(1)})`);
+    } else if (myRating >= avgRating - 0.5) {
+      score += 3;
+      reasons.push(`puanın rakip ortalamasına yakın`);
+    } else {
+      score -= 8;
+      reasons.push(`puanın rakip ortalamasının altında — iyileştirme fırsatı`);
+    }
+  }
+
+  // Factor 3: Target keyword coverage potential
+  if (targetKeywords.length > 0) {
+    const titleLower = (app.title || '').toLowerCase();
+    const summaryLower = (app.summary || '').toLowerCase();
+    const covered = targetKeywords.filter(k =>
+      titleLower.includes(k.toLowerCase()) || summaryLower.includes(k.toLowerCase())
+    ).length;
+    const coverageRatio = covered / targetKeywords.length;
+
+    if (coverageRatio >= 0.8) {
+      score += 8;
+    } else if (coverageRatio >= 0.5) {
+      score += 0;
+      reasons.push(`${targetKeywords.length - covered} hedef kelime metadata'ya eklenebilir`);
+    } else {
+      score -= 5;
+      reasons.push(`hedef kelimelerin çoğu metadata'da yok — büyük fırsat`);
+    }
+  }
+
   return {
     score: clamp(score),
-    explanation: `Ort. fırsat ${Math.round(avg)}/100. ${highOpp} yüksek fırsat (≥65). ${unranked} kelimede zayıf görünürlük.`,
-  }
+    explanation: reasons.length > 0 ? reasons.join('; ') + '.' : 'Fırsat analizi mevcut verilerle yapıldı.',
+  };
 }
 
 function scoreRecentActivity(app: PlayAppDetail): { score: number; explanation: string } {
@@ -259,7 +386,7 @@ export function computeHealthScore(input: HealthScoreInput): HealthScoreBreakdow
   const kw = scoreKeywordCoverage(app, bulkScanResults, meta, targetKeywords)
   const metaScore = scoreTitleMetadata(meta)
   const comp = scoreCompetitorPositioning(app, genreSearchResults, genreSearchRank)
-  const opp = scoreOpportunityAverage(bulkScanResults)
+  const opp = scoreOpportunityAverage(bulkScanResults, meta, targetKeywords, app, genreSearchResults)
   const activity = scoreRecentActivity(app)
 
   const criteria: HealthScoreCriterion[] = [
