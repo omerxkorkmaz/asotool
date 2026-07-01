@@ -167,6 +167,37 @@ export function printAuditReport(result: AsoAuditResult) {
   openPrintWindow('ASO Audit Raporu', html)
 }
 
+export function printDeepReport(data: unknown) {
+  const r = data as {
+    generatedAt?: string
+    prepared?: { title?: string; appEntry?: string }
+    analysis?: {
+      executiveSummary?: string
+      opportunities?: string[]
+      actionPlan?: { immediate?: string[]; shortTerm?: string[] }
+      externalSignalInsights?: string
+      competitors?: { title?: string; whyTheyRankHigher?: string }[]
+    }
+  }
+  const html = `
+    <h1>Deep Competitor Report</h1>
+    <div class="meta">${escapeHtml(r.prepared?.title || r.prepared?.appEntry || '')} · ${formatReportDate(r.generatedAt || new Date().toISOString())}</div>
+    <h2>Executive Summary</h2>
+    <p>${escapeHtml(r.analysis?.executiveSummary || '')}</p>
+    <h2>Rakip Analizi</h2>
+    ${(r.analysis?.competitors || []).map((c) => `<p><strong>${escapeHtml(c.title || '')}</strong>: ${escapeHtml(c.whyTheyRankHigher || '')}</p>`).join('')}
+    <h2>Fırsatlar</h2>
+    <ul>${(r.analysis?.opportunities || []).map((o) => `<li>${escapeHtml(o)}</li>`).join('')}</ul>
+    <h2>Aksiyon Planı — Hemen</h2>
+    <ol>${(r.analysis?.actionPlan?.immediate || []).map((a) => `<li>${escapeHtml(a)}</li>`).join('')}</ol>
+    <h2>Aksiyon Planı — Kısa Vade</h2>
+    <ol>${(r.analysis?.actionPlan?.shortTerm || []).map((a) => `<li>${escapeHtml(a)}</li>`).join('')}</ol>
+    <h2>Dış Sinyaller</h2>
+    <p>${escapeHtml(r.analysis?.externalSignalInsights || '')}</p>
+  `
+  openPrintWindow('Deep Competitor Report', html)
+}
+
 function openPrintWindow(title: string, bodyHtml: string) {
   const w = window.open('', '_blank')
   if (!w) {
@@ -195,7 +226,13 @@ function formatReportDate(iso: string): string {
   return new Date(iso).toLocaleString('tr-TR')
 }
 
-export type ExportKind = 'bulk-scan' | 'metadata' | 'audit'
+export type ExportKind = 'bulk-scan' | 'metadata' | 'audit' | 'deep-report'
+
+export function exportDeepReportJson(data: unknown) {
+  const r = data as { generatedAt?: string; prepared?: { appEntry?: string } }
+  const slug = (r.prepared?.appEntry || 'report').replace(/[:/\\]/g, '-')
+  downloadJson(`deep-report-${slug}-${dateSlug(r.generatedAt || new Date().toISOString())}.json`, data)
+}
 
 export function exportAnalysis(kind: ExportKind, format: 'json' | 'csv' | 'print', data: unknown) {
   if (kind === 'bulk-scan') {
@@ -208,6 +245,10 @@ export function exportAnalysis(kind: ExportKind, format: 'json' | 'csv' | 'print
     if (format === 'json') exportMetadataJson(r)
     else if (format === 'csv') exportMetadataCsv(r)
     else printMetadataReport(r)
+  } else if (kind === 'deep-report') {
+    if (format === 'json') exportDeepReportJson(data)
+    else if (format === 'print') printDeepReport(data)
+    else exportDeepReportJson(data)
   } else {
     const r = data as AsoAuditResult
     if (format === 'json') exportAuditJson(r)

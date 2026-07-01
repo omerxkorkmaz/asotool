@@ -55,6 +55,8 @@ async function gatherAppSnapshot(
   }
 
   const keywordRankings: AppSnapshot['keywordRankings'] = []
+  const searchDepth = platform === 'android' ? 250 : 100
+
   for (const keyword of targetKeywords) {
     const { data: rankData } = await supabase
       .from('keyword_rankings_history')
@@ -66,9 +68,21 @@ async function gatherAppSnapshot(
       .limit(1)
 
     const rows = (rankData || []) as KeywordRankRow[]
+    let myRank = rows[0]?.rank ?? null
+
+    if (myRank == null) {
+      try {
+        const results = await adapter.search(keyword, searchDepth)
+        const position = results.findIndex((r) => r.appId === appId)
+        myRank = position === -1 ? null : position + 1
+      } catch {
+        myRank = null
+      }
+    }
+
     keywordRankings.push({
       keyword,
-      myRank: rows[0]?.rank ?? null,
+      myRank,
       competitorRanks: [],
     })
   }

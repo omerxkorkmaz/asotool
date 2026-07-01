@@ -337,6 +337,18 @@ export default function CommandCenter() {
                     <button
                       type="button"
                       className="btn btn-ghost"
+                      style={{ fontSize: 12, marginRight: 8 }}
+                      onClick={() =>
+                        router.push(
+                          `/deep-report?app=${encodeURIComponent(`android:${profile.packageName}`)}&auto=1`
+                        )
+                      }
+                    >
+                      ◎ Deep Report
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
                       style={{ fontSize: 12 }}
                       onClick={() =>
                         router.push(

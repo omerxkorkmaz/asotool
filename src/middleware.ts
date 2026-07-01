@@ -14,6 +14,7 @@ const HEAVY_API_ROUTES = new Set([
   '/api/metadata-optimizer',
   '/api/multi-country',
   '/api/categorize-reviews',
+  '/api/deep-report',
 ])
 
 function getClientIp(req: NextRequest): string {
